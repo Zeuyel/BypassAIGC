@@ -25,15 +25,21 @@
 ```powershell
 # 一键配置环境
 .\setup.ps1
+
+# 验证安装（可选）
+.\verify-installation.ps1
 ```
 
 **Ubuntu/Linux 系统:**
 ```bash
-# 添加执行权限
-chmod +x setup.sh start-backend.sh start-frontend.sh
+# 添加执行权限（首次需要）
+chmod +x setup.sh start-backend.sh start-frontend.sh start-all.sh stop-all.sh verify-installation.sh verify-database.sh
 
 # 一键配置环境
 ./setup.sh
+
+# 验证安装（可选）
+./verify-installation.sh
 ```
 
 ### 2. 配置文件
@@ -103,9 +109,15 @@ COMPRESSION_BASE_URL=http://IP:PORT/v1
 
 **Ubuntu/Linux 系统:**
 ```bash
-# 分别启动（建议使用两个终端）
+# 一键启动（推荐）
+./start-all.sh       # 使用 tmux/screen 后台运行
+
+# 或分别启动（需要两个终端）
 ./start-backend.sh   # 后端 http://localhost:8000
 ./start-frontend.sh  # 前端 http://localhost:3000
+
+# 停止所有服务
+./stop-all.sh
 
 # 或配置 systemd 服务实现开机自启，详见 DEPLOY.md
 ```
@@ -165,10 +177,43 @@ AI_GC/
 3. 填写有效的 OPENAI_API_KEY
 4. 阅读安全审计报告并应用关键修复
 
+## 验证和测试
+
+### 验证安装
+
+使用验证脚本检查环境配置：
+
+```bash
+# Linux/Ubuntu
+./verify-installation.sh
+
+# Windows
+.\verify-installation.ps1
+```
+
+验证脚本会检查：
+- Python 和 Node.js 版本
+- 依赖包安装情况
+- 配置文件完整性
+- 数据库初始化状态
+- 端口占用情况
+
+### 验证数据库
+
+单独验证数据库配置：
+
+```bash
+# Linux/Ubuntu
+./verify-database.sh
+
+# Windows
+.\verify-database.ps1
+```
+
 ## 常见问题
 
 **Q: 端口被占用？**  
-A: 修改启动脚本中的端口号，或停止占用进程
+A: 使用 `./stop-all.sh` (Linux) 或修改启动脚本中的端口号
 
 **Q: 配置修改后未生效？**  
 A: 检查后端日志，配置应自动重载。如仍无效请重启后端
@@ -176,6 +221,8 @@ A: 检查后端日志，配置应自动重载。如仍无效请重启后端
 **Q: 登录失败？**  
 A: 检查 `.env` 中的 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD`
 
+**Q: 数据库初始化失败？**  
+A: 运行 `./verify-database.sh` 查看详细错误信息
 
 **Q: AI 调用失败？**  
 A: 检查 API Key 和 Base URL 配置是否正确

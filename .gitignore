@@ -40,3 +40,14 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Process ID files
+*.pid
+backend.pid
+frontend.pid
+
+# Log files
+backend.log
+frontend.log
+backend/backend.log
+frontend/frontend.log
