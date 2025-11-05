@@ -64,13 +64,28 @@ async def start_optimization(
     if usage_limit > 0 and usage_count >= usage_limit:
         raise HTTPException(status_code=403, detail="该卡密已达到使用次数限制")
     
+    # 验证处理模式
+    valid_modes = ['paper_polish', 'paper_polish_enhance', 'emotion_polish']
+    if data.processing_mode not in valid_modes:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"无效的处理模式。支持的模式: {', '.join(valid_modes)}"
+        )
+    
+    # 根据处理模式设置初始阶段
+    if data.processing_mode == 'emotion_polish':
+        initial_stage = 'emotion_polish'
+    else:
+        initial_stage = 'polish'
+    
     # 创建会话
     session_id = generate_session_id()
     session = OptimizationSession(
         user_id=user.id,
         session_id=session_id,
         original_text=data.original_text,
-        current_stage="polish",
+        processing_mode=data.processing_mode,
+        current_stage=initial_stage,
         status="queued",
         progress=0.0,
         polish_model=data.polish_config.model if data.polish_config else None,
@@ -78,7 +93,10 @@ async def start_optimization(
         polish_base_url=data.polish_config.base_url if data.polish_config else None,
         enhance_model=data.enhance_config.model if data.enhance_config else None,
         enhance_api_key=data.enhance_config.api_key if data.enhance_config else None,
-        enhance_base_url=data.enhance_config.base_url if data.enhance_config else None
+        enhance_base_url=data.enhance_config.base_url if data.enhance_config else None,
+        emotion_model=data.emotion_config.model if data.emotion_config else None,
+        emotion_api_key=data.emotion_config.api_key if data.emotion_config else None,
+        emotion_base_url=data.emotion_config.base_url if data.emotion_config else None
     )
     
     db.add(session)
