@@ -117,7 +117,186 @@ SEGMENT_SKIP_THRESHOLD=15
 - 推荐使用 Google Gemini 2.5 Pro 模型以获得更好的性能和成本效益
 - BASE_URL 使用 OpenAI 兼容格式，需要配置支持 OpenAI API 格式的代理服务
 
-### 3. 启动服务
+### 3. 使用命令行安装和部署（不使用启动脚本）
+
+如果你不想使用统一启动脚本，也可以直接使用命令行进行安装和部署：
+
+#### Linux/Ubuntu 系统
+
+**步骤 1: 安装后端依赖**
+```bash
+# 进入后端目录
+cd backend
+
+# 创建 Python 虚拟环境
+python3 -m venv venv
+
+# 激活虚拟环境
+source venv/bin/activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 返回项目根目录
+cd ..
+```
+
+**步骤 2: 安装前端依赖**
+```bash
+# 进入前端目录
+cd frontend
+
+# 安装 Node.js 依赖
+npm install
+
+# 返回项目根目录
+cd ..
+```
+
+**步骤 3: 配置环境变量**
+```bash
+# 创建并编辑 backend/.env 文件
+nano backend/.env
+# 或使用你喜欢的编辑器（vim, gedit 等）
+```
+
+配置文件内容参考"配置文件"部分。
+
+**步骤 4: 启动服务**
+
+启动后端（在一个终端）：
+```bash
+cd backend
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+启动前端（在另一个终端）：
+```bash
+cd frontend
+npm run dev
+```
+
+#### macOS 系统
+
+**步骤 1: 安装后端依赖**
+```bash
+# 进入后端目录
+cd backend
+
+# 创建 Python 虚拟环境
+python3 -m venv venv
+
+# 激活虚拟环境
+source venv/bin/activate
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 返回项目根目录
+cd ..
+```
+
+**步骤 2: 安装前端依赖**
+```bash
+# 进入前端目录
+cd frontend
+
+# 安装 Node.js 依赖
+npm install
+
+# 返回项目根目录
+cd ..
+```
+
+**步骤 3: 配置环境变量**
+```bash
+# 创建并编辑 backend/.env 文件
+nano backend/.env
+# 或使用其他编辑器
+```
+
+配置文件内容参考"配置文件"部分。
+
+**步骤 4: 启动服务**
+
+启动后端（在一个终端）：
+```bash
+cd backend
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+启动前端（在另一个终端）：
+```bash
+cd frontend
+npm run dev
+```
+
+#### Windows 系统
+
+**步骤 1: 安装后端依赖**
+```powershell
+# 进入后端目录
+cd backend
+
+# 创建 Python 虚拟环境
+python -m venv venv
+
+# 激活虚拟环境
+.\venv\Scripts\Activate.ps1
+# 如果遇到执行策略问题，运行: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 返回项目根目录
+cd ..
+```
+
+**步骤 2: 安装前端依赖**
+```powershell
+# 进入前端目录
+cd frontend
+
+# 安装 Node.js 依赖
+npm install
+
+# 返回项目根目录
+cd ..
+```
+
+**步骤 3: 配置环境变量**
+```powershell
+# 创建并编辑 backend\.env 文件
+notepad backend\.env
+# 或使用其他编辑器
+```
+
+配置文件内容参考"配置文件"部分。
+
+**步骤 4: 启动服务**
+
+启动后端（在一个 PowerShell 窗口）：
+```powershell
+cd backend
+.\venv\Scripts\Activate.ps1
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+启动前端（在另一个 PowerShell 窗口）：
+```powershell
+cd frontend
+npm run dev
+```
+
+**访问地址:**
+- 前端: http://localhost:3000
+- 后端 API: http://localhost:8000
+- API 文档: http://localhost:8000/docs
+- 管理后台: http://localhost:3000/admin
+
+### 4. 使用统一启动脚本
 
 **数据库说明**: 数据库会在首次启动后端服务时自动创建，无需手动初始化。
 
