@@ -3,6 +3,9 @@ from typing import Optional, Dict, List
 from datetime import datetime
 from app.config import settings
 
+# 等待并发权限的最大超时时间（秒）
+ACQUIRE_TIMEOUT = 3600  # 1小时
+
 
 class ConcurrencyManager:
     """并发控制管理器"""
@@ -14,8 +17,16 @@ class ConcurrencyManager:
         self._lock = asyncio.Lock()
         self._condition = asyncio.Condition(self._lock)  # 添加条件变量
     
-    async def acquire(self, session_id: str) -> bool:
-        """获取执行权限"""
+    async def acquire(self, session_id: str, timeout: float = ACQUIRE_TIMEOUT) -> bool:
+        """获取执行权限
+        
+        Args:
+            session_id: 会话ID
+            timeout: 等待超时时间（秒），默认1小时
+            
+        Returns:
+            True if acquired, False if timed out or removed from queue
+        """
         async with self._condition:
             # 如果已经在活跃会话中,直接返回
             if session_id in self.active_sessions:
@@ -28,9 +39,21 @@ class ConcurrencyManager:
             if session_id not in self.queue:
                 self.queue.append(session_id)
             
-            # 等待被唤醒，而不是轮询
+            # 等待被唤醒，设置超时防止无限等待
+            start_time = datetime.utcnow()
             while session_id not in self.active_sessions and session_id in self.queue:
-                await self._condition.wait()
+                try:
+                    # 使用 wait_for 设置超时
+                    remaining_timeout = timeout - (datetime.utcnow() - start_time).total_seconds()
+                    if remaining_timeout <= 0:
+                        # 超时，从队列中移除
+                        if session_id in self.queue:
+                            self.queue.remove(session_id)
+                        return False
+                    await asyncio.wait_for(self._condition.wait(), timeout=min(remaining_timeout, 60))
+                except asyncio.TimeoutError:
+                    # 每60秒检查一次是否超时
+                    continue
             
             return session_id in self.active_sessions
     

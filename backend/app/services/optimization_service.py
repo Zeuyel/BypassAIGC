@@ -16,6 +16,9 @@ from app.services.concurrency import concurrency_manager
 from app.services.stream_manager import stream_manager
 from app.config import settings
 
+# 错误信息最大长度，避免数据库字段溢出
+MAX_ERROR_MESSAGE_LENGTH = 500
+
 
 class OptimizationService:
     """优化处理服务"""
@@ -76,7 +79,9 @@ class OptimizationService:
                 self.db.commit()
                 
                 # 等待获取权限 - acquire 方法内部已包含等待逻辑
-                await concurrency_manager.acquire(self.session_obj.session_id)
+                acquired = await concurrency_manager.acquire(self.session_obj.session_id)
+                if not acquired:
+                    raise Exception("等待并发权限超时")
             
             # 更新状态为处理中
             self.session_obj.status = "processing"
@@ -339,8 +344,8 @@ class OptimizationService:
                 self.session_obj.failed_segment_index = idx
                 # 保存错误信息（限制长度避免数据库字段溢出）
                 error_msg = str(e)
-                if len(error_msg) > 500:
-                    error_msg = error_msg[:500] + "..."
+                if len(error_msg) > MAX_ERROR_MESSAGE_LENGTH:
+                    error_msg = error_msg[:MAX_ERROR_MESSAGE_LENGTH] + "..."
                 self.session_obj.error_message = error_msg
                 self.db.commit()
                 
