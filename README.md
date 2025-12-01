@@ -21,11 +21,35 @@ gptzero
 
 ## 快速开始
 
+### 方式一：使用可执行文件（推荐新手）
+
+无需安装任何开发环境，下载即可使用！
+
+1. 从 [Releases](https://github.com/chi111i/BypassAIGC/releases) 页面下载对应平台的可执行文件：
+   - Windows: `AI学术写作助手-Windows-vX.X.X.zip`
+   - macOS: `AI学术写作助手-macOS-vX.X.X.tar.gz`
+   - Linux: `AI学术写作助手-Linux-vX.X.X.tar.gz`
+
+2. 解压到任意目录
+
+3. 首次运行会自动创建 `.env` 配置文件模板，编辑配置文件填入：
+   - API Key（POLISH_API_KEY、ENHANCE_API_KEY 等）
+   - 管理员密码（ADMIN_PASSWORD）
+   - JWT 密钥（SECRET_KEY）
+
+4. 再次运行程序，将自动打开浏览器访问 http://localhost:8000
+
+> 💡 提示：数据库文件 `ai_polish.db` 和配置文件 `.env` 都保存在可执行文件同目录，方便备份和迁移。
+
+### 方式二：使用启动脚本
+
+适合开发者或需要自定义配置的用户：
+
 ```
 git clone https://github.com/chi111i/BypassAIGC.git
 ```
 
-### 1. 使用统一启动脚本
+#### 1. 使用统一启动脚本
 
 所有系统现已整合为统一的交互式脚本，通过菜单选择所需功能：
 
@@ -417,6 +441,33 @@ A: 使用统一脚本的菜单选项 7 查看详细错误信息
 
 **Q: AI 调用失败？**  
 A: 检查 API Key 和 Base URL 配置是否正确
+
+## 自行构建可执行文件
+
+如果需要自行构建可执行文件，请参考 [package/README.md](package/README.md)。
+
+### 本地构建
+
+```bash
+# Linux/macOS
+cd package
+chmod +x build.sh
+./build.sh
+
+# Windows
+cd package
+.\build.ps1
+```
+
+### GitHub Actions 自动构建
+
+推送以 `v` 开头的标签会自动触发构建：
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+构建完成后，可在 Releases 页面下载各平台的可执行文件。
 
 ## License
 未经允许禁止商业使用

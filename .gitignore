@@ -51,3 +51,11 @@ backend.log
 frontend.log
 backend/backend.log
 frontend/frontend.log
+
+# PyInstaller
+*.spec.bak
+package/static/
+package/dist/
+package/build/
+*.manifest
+*.pem
