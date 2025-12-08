@@ -265,8 +265,8 @@ class OptimizationService:
                 
                 # 调用AI
                 async def execute_call():
-                    # 启用流式
-                    use_stream = True
+                    # 使用配置中的流式设置，默认非流式（False）以避免API阻止
+                    use_stream = settings.USE_STREAMING
                     
                     if stage == "polish":
                         response = await ai_service.polish_text(input_text, prompt, history, stream=use_stream)

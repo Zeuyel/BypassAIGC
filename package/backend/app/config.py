@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     EMOTION_MODEL: Optional[str] = None
     EMOTION_API_KEY: Optional[str] = None
     EMOTION_BASE_URL: Optional[str] = None
+    
+    # 流式输出配置
+    USE_STREAMING: bool = False  # 默认使用非流式模式，避免被API阻止
+    
     # JWT 密钥
     SECRET_KEY: str = "your-secret-key-change-this-in-production"
     ALGORITHM: str = "HS256"

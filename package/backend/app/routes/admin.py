@@ -727,6 +727,7 @@ async def get_config(_: str = Depends(get_admin_from_token)) -> Dict[str, Any]:
             "history_compression_threshold": settings.HISTORY_COMPRESSION_THRESHOLD,
             "default_usage_limit": settings.DEFAULT_USAGE_LIMIT,
             "segment_skip_threshold": settings.SEGMENT_SKIP_THRESHOLD,
+            "use_streaming": settings.USE_STREAMING,
         },
     }
 
@@ -739,9 +740,9 @@ async def update_config(
     if not updates:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="缺少更新内容")
 
-    current_file = os.path.abspath(__file__)
-    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
-    env_path = os.path.join(backend_dir, ".env")
+    # 使用 config.py 中的函数获取 .env 路径，支持 exe 环境
+    from app.config import get_env_file_path
+    env_path = get_env_file_path()
 
     if not os.path.exists(env_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f".env 文件不存在: {env_path}")
