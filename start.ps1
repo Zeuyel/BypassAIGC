@@ -1,5 +1,7 @@
 # ========================================
-# AI 学术写作助手 - 统一启动脚本 (Windows)
+# AI 学术写作助手 - 开发调试脚本 (Windows)
+# ⚠️ 注意：此脚本仅供开发调试使用
+# 普通用户请下载并使用可执行文件版本
 # ========================================
 
 # 确保使用PowerShell 7+或兼容模式，避免Terminal-Icons模块问题
@@ -23,7 +25,8 @@ function Write-ColorOutput {
 function Show-Menu {
     Clear-Host
     Write-ColorOutput "`n========================================" "Cyan"
-    Write-ColorOutput "   AI 学术写作助手 - 统一管理脚本" "Cyan"
+    Write-ColorOutput "   AI 学术写作助手 - 开发管理脚本" "Cyan"
+    Write-ColorOutput "   ⚠️ 仅供开发调试使用" "Yellow"
     Write-ColorOutput "========================================`n" "Cyan"
     
     Write-ColorOutput "请选择要执行的操作:`n" "Yellow"

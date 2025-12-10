@@ -21,7 +21,7 @@ gptzero
 
 ## 快速开始
 
-### 方式一：使用可执行文件（推荐新手）
+### 使用可执行文件（推荐）
 
 无需安装任何开发环境，下载即可使用！
 
@@ -37,62 +37,47 @@ gptzero
    - 管理员密码（ADMIN_PASSWORD）
    - JWT 密钥（SECRET_KEY）
 
-4. 再次运行程序，将自动打开浏览器访问 http://localhost:3000
-5. 访问 http://localhost:3000/admin 后台创建卡密。
+4. 再次运行程序，将自动打开浏览器
+5. 访问管理后台创建卡密
 > 💡 提示：数据库文件 `ai_polish.db` 和配置文件 `.env` 都保存在可执行文件同目录，方便备份和迁移。
 
-### 方式二：使用启动脚本
+### 开发者模式（仅供开发调试使用）
 
-适合开发者或需要自定义配置的用户：
+⚠️ **注意：此方式仅供开发者调试使用，普通用户请使用上述可执行文件方式。**
 
-```
-git clone https://github.com/chi111i/BypassAIGC.git
-```
+如果你需要修改源代码或进行开发调试：
 
-#### 1. 使用统一启动脚本
-
-所有系统现已整合为统一的交互式脚本，通过菜单选择所需功能：
-
-**macOS 系统:**
 ```bash
-# 添加执行权限
-chmod +x start-macos.sh
+git clone https://github.com/chi111i/BypassAIGC.git
+cd BypassAIGC
+```
 
-# 运行统一脚本
+#### 快速启动（推荐）
+
+使用启动脚本快速设置开发环境：
+
+**macOS:**
+```bash
+chmod +x start-macos.sh
 ./start-macos.sh
 ```
 
-**Windows 系统:**
+**Windows:**
 ```powershell
-# 运行统一脚本（自动检测 PowerShell 7+ 以避免兼容性问题）
 .\start.ps1
 ```
 
-**Ubuntu/Linux 系统:**
+**Linux:**
 ```bash
-# 添加执行权限
 chmod +x start.sh
-
-# 运行统一脚本
 ./start.sh
 ```
 
-**菜单功能包括:**
-- 1. 环境安装配置
-- 2. 启动所有服务
-- 3. 仅启动后端服务
-- 4. 仅启动前端服务
-- 5. 停止所有服务
-- 6. 验证安装
-- 7. 验证数据库
-- 8. 故障排查（Linux/macOS）
-- 9. 清理环境（Linux/macOS）
+选择菜单中的选项 1 安装环境，然后选择选项 2 启动服务。
 
-### 2. 配置文件
+#### 配置文件
 
-首次运行统一脚本并选择"环境安装配置"后，会自动生成 `backend/.env` 配置文件模板。
-
-编辑 `backend/.env` 填入你的配置信息:
+在 `backend/.env` 中配置：
 ```properties
 # 数据库配置
 DATABASE_URL=sqlite:///./ai_polish.db
@@ -150,180 +135,7 @@ SEGMENT_SKIP_THRESHOLD=15
 - BASE_URL 使用 OpenAI 兼容格式，需要配置支持 OpenAI API 格式的代理服务
 - **流式输出默认禁用**：为避免某些 API（如 Gemini）返回阻止错误，系统默认使用非流式模式。可在管理后台的"系统配置"中切换
 
-### 3. 使用命令行安装和部署（不使用启动脚本）
-
-如果你不想使用统一启动脚本，也可以直接使用命令行进行安装和部署：
-
-#### Linux/Ubuntu 系统
-
-**步骤 1: 安装后端依赖**
-```bash
-# 进入后端目录
-cd backend
-
-# 创建 Python 虚拟环境
-python3 -m venv venv
-
-# 激活虚拟环境
-source venv/bin/activate
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 返回项目根目录
-cd ..
-```
-
-**步骤 2: 安装前端依赖**
-```bash
-# 进入前端目录
-cd frontend
-
-# 安装 Node.js 依赖
-npm install
-
-# 返回项目根目录
-cd ..
-```
-
-**步骤 3: 配置环境变量**
-```bash
-# 创建并编辑 backend/.env 文件
-nano backend/.env
-# 或使用你喜欢的编辑器（vim, gedit 等）
-```
-
-配置文件内容参考"配置文件"部分。
-
-**步骤 4: 启动服务**
-
-启动后端（在一个终端）：
-```bash
-cd backend
-source venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-启动前端（在另一个终端）：
-```bash
-cd frontend
-npm run dev
-```
-
-#### macOS 系统
-
-**步骤 1: 安装后端依赖**
-```bash
-# 进入后端目录
-cd backend
-
-# 创建 Python 虚拟环境
-python3 -m venv venv
-
-# 激活虚拟环境
-source venv/bin/activate
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 返回项目根目录
-cd ..
-```
-
-**步骤 2: 安装前端依赖**
-```bash
-# 进入前端目录
-cd frontend
-
-# 安装 Node.js 依赖
-npm install
-
-# 返回项目根目录
-cd ..
-```
-
-**步骤 3: 配置环境变量**
-```bash
-# 创建并编辑 backend/.env 文件
-nano backend/.env
-# 或使用其他编辑器
-```
-
-配置文件内容参考"配置文件"部分。
-
-**步骤 4: 启动服务**
-
-启动后端（在一个终端）：
-```bash
-cd backend
-source venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-启动前端（在另一个终端）：
-```bash
-cd frontend
-npm run dev
-```
-
-#### Windows 系统
-
-**步骤 1: 安装后端依赖**
-```powershell
-# 进入后端目录
-cd backend
-
-# 创建 Python 虚拟环境
-python -m venv venv
-
-# 激活虚拟环境
-.\venv\Scripts\Activate.ps1
-# 如果遇到执行策略问题，运行: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 返回项目根目录
-cd ..
-```
-
-**步骤 2: 安装前端依赖**
-```powershell
-# 进入前端目录
-cd frontend
-
-# 安装 Node.js 依赖
-npm install
-
-# 返回项目根目录
-cd ..
-```
-
-**步骤 3: 配置环境变量**
-```powershell
-# 创建并编辑 backend\.env 文件
-notepad backend\.env
-# 或使用其他编辑器
-```
-
-配置文件内容参考"配置文件"部分。
-
-**步骤 4: 启动服务**
-
-启动后端（在一个 PowerShell 窗口）：
-```powershell
-cd backend
-.\venv\Scripts\Activate.ps1
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-启动前端（在另一个 PowerShell 窗口）：
-```powershell
-cd frontend
-npm run dev
-```
-
-**访问地址:**
+#### 访问地址（开发模式）
 - 前端: http://localhost:3000
 - 后端 API: http://localhost:8000
 - API 文档: http://localhost:8000/docs
@@ -340,7 +152,11 @@ npm run dev
 
 ## 管理后台
 
-访问 `http://localhost:3000/admin` 使用管理员账户登录
+访问后台 `/admin` 路径使用管理员账户登录
+
+> 注意：
+> - 可执行文件版本：访问 `http://localhost:8000/admin`
+> - 开发模式：访问 `http://localhost:3000/admin`
 
 ### 功能模块
 - 📊 **数据面板**: 用户统计、会话分析
@@ -383,73 +199,26 @@ AI_GC/
 1. 修改 `.env` 中的默认管理员密码
 2. 生成强 SECRET_KEY (至少 32 字节随机字符串)
 3. 填写有效的 OPENAI_API_KEY
-4. 阅读安全审计报告并应用关键修复
-
-## 验证和测试
-
-### 验证安装
-
-使用统一脚本菜单选项 6 检查环境配置：
-
-```bash
-# Linux/Ubuntu
-./start.sh
-# 选择选项 6
-
-# macOS
-./start-macos.sh
-# 选择选项 6
-
-# Windows
-.\start.ps1
-# 选择选项 6
-```
-
-验证功能会检查：
-- Python 和 Node.js 版本
-- 依赖包安装情况
-- 配置文件完整性
-- 数据库初始化状态
-- 端口占用情况
-
-### 验证数据库
-
-使用统一脚本菜单选项 7 单独验证数据库配置：
-
-```bash
-# Linux/Ubuntu
-./start.sh
-# 选择选项 7
-
-# macOS
-./start-macos.sh
-# 选择选项 7
-
-# Windows
-.\start.ps1
-# 选择选项 7
-```
 
 ## 常见问题
 
 **Q: 端口被占用？**  
-A: 使用统一脚本的菜单选项 5 停止所有服务，或修改启动脚本中的端口号
+A: 
+- 可执行文件版本：关闭其他占用 8000 端口的程序
+- 开发模式：使用启动脚本的菜单选项 5 停止所有服务
 
 **Q: 配置修改后未生效？**  
-A: 检查后端日志，配置应自动重载。如仍无效请使用统一脚本重启后端
+A: 重启程序使配置生效
 
 **Q: 登录失败？**  
 A: 检查 `.env` 中的 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD`
-
-**Q: 数据库初始化失败？**  
-A: 使用统一脚本的菜单选项 7 查看详细错误信息
 
 **Q: AI 调用失败？**  
 A: 检查 API Key 和 Base URL 配置是否正确
 
 **Q: Gemini API 返回 "Your request was blocked" 错误？**  
 A: 这是因为 Gemini API 可能阻止流式请求。解决方法：
-1. 登录管理后台 `http://localhost:3000/admin`
+1. 登录管理后台（可执行文件版本使用 `/admin` 路径）
 2. 进入"系统配置"标签页
 3. 找到"流式输出模式"开关，确保它是**禁用**状态（推荐）
 4. 点击"保存配置"按钮
@@ -457,13 +226,11 @@ A: 这是因为 Gemini API 可能阻止流式请求。解决方法：
 
 默认配置已经禁用了流式输出，如果仍然遇到此问题，请检查 `.env` 文件中的 `USE_STREAMING` 设置是否为 `false`
 
-**Q: 管理后台登录显示 "Not Found"？**  
-A: 这可能是环境配置问题：
-1. 确保后端服务正在运行（检查 http://localhost:8000/health）
-2. 确认前端配置正确指向后端 API（默认为 `/api`）
+**Q: 管理后台登录显示 "Not Found" 或 404 错误？**  
+A: 请确保使用的是可执行文件版本（推荐方式）：
+1. 从 Releases 下载并使用可执行文件，所有路由已正确配置
+2. 如果是开发模式，确保使用启动脚本同时启动前后端
 3. 检查浏览器控制台是否有错误信息
-4. 尝试清除浏览器缓存后重新登录
-5. 确认 `.env` 文件中的 `SECRET_KEY` 已正确配置
 
 ## 自行构建可执行文件
 
