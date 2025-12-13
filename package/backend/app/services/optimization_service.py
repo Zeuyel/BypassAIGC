@@ -452,7 +452,7 @@ class OptimizationService:
         existing = self.db.query(SessionHistory).filter(
             SessionHistory.session_id == self.session_obj.id,
             SessionHistory.stage == stage,
-            SessionHistory.is_compressed == True
+            SessionHistory.is_compressed.is_(True)
         ).first()
         
         if existing:

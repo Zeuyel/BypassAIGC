@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 import os
 import sys
 from datetime import datetime, timedelta
@@ -14,6 +15,36 @@ from app.routes import admin, prompts, optimization
 from app.models.models import CustomPrompt
 from app.database import SessionLocal
 from app.services.ai_service import get_default_polish_prompt, get_default_enhance_prompt
+
+
+# 响应缓存头中间件 - 优化浏览器缓存
+class CacheControlMiddleware(BaseHTTPMiddleware):
+    """添加缓存控制头，优化浏览器缓存"""
+
+    # 可缓存的静态资源路径
+    CACHEABLE_PATHS = {
+        "/api/prompts/system": 300,  # 系统提示词缓存5分钟
+        "/api/health/models": 60,    # 模型健康检查缓存1分钟
+        "/health": 30,               # 健康检查缓存30秒
+    }
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        # 只对 GET 请求添加缓存头
+        if request.method == "GET":
+            path = request.url.path
+            # 检查是否是可缓存的路径
+            for cacheable_path, max_age in self.CACHEABLE_PATHS.items():
+                if path.endswith(cacheable_path):
+                    response.headers["Cache-Control"] = f"public, max-age={max_age}"
+                    break
+            else:
+                # 默认不缓存动态内容
+                if "/api/" in path:
+                    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+
+        return response
 
 # 检查默认密钥 - 仅警告，不退出（允许开发环境使用）
 if settings.SECRET_KEY == "your-secret-key-change-this-in-production":
@@ -44,6 +75,9 @@ app = FastAPI(
 # 添加 Gzip 压缩中间件以减少响应体积
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# 添加缓存控制中间件
+app.add_middleware(CacheControlMiddleware)
+
 # CORS 配置
 app.add_middleware(
     CORSMiddleware,
@@ -66,16 +100,16 @@ async def startup_event():
     """启动时初始化"""
     # 初始化数据库
     init_db()
-    
+
     # 创建系统默认提示词
     db = SessionLocal()
     try:
         # 检查是否已存在系统提示词
         polish_prompt = db.query(CustomPrompt).filter(
-            CustomPrompt.is_system == True,
+            CustomPrompt.is_system.is_(True),
             CustomPrompt.stage == "polish"
         ).first()
-        
+
         if not polish_prompt:
             polish_prompt = CustomPrompt(
                 name="默认润色提示词",
@@ -85,12 +119,12 @@ async def startup_event():
                 is_system=True
             )
             db.add(polish_prompt)
-        
+
         enhance_prompt = db.query(CustomPrompt).filter(
-            CustomPrompt.is_system == True,
+            CustomPrompt.is_system.is_(True),
             CustomPrompt.stage == "enhance"
         ).first()
-        
+
         if not enhance_prompt:
             enhance_prompt = CustomPrompt(
                 name="默认增强提示词",
@@ -100,7 +134,7 @@ async def startup_event():
                 is_system=True
             )
             db.add(enhance_prompt)
-        
+
         db.commit()
     finally:
         db.close()

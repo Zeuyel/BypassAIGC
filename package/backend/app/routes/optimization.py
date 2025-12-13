@@ -25,7 +25,7 @@ def get_current_user(card_key: str, db: Session = Depends(get_db)) -> User:
     """获取当前用户"""
     user = db.query(User).filter(
         User.card_key == card_key,
-        User.is_active == True
+        User.is_active.is_(True)
     ).first()
     
     if not user:

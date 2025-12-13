@@ -1,11 +1,110 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { 
-  FileText, History, LogOut, Play, 
-  Users, Clock, AlertCircle, CheckCircle, Trash2, Info 
+import {
+  FileText, History, LogOut, Play,
+  Users, Clock, AlertCircle, CheckCircle, Trash2, Info
 } from 'lucide-react';
 import { optimizationAPI } from '../api';
+
+// 会话列表项组件 - 使用 memo 避免不必要重渲染
+const SessionItem = memo(({ session, activeSession, onView, onDelete, onRetry }) => {
+  const handleDelete = useCallback((e) => {
+    e.stopPropagation();
+    onDelete(session);
+  }, [session, onDelete]);
+
+  const handleRetry = useCallback((e) => {
+    e.stopPropagation();
+    if (session.status === 'failed') {
+      onRetry(session);
+    }
+  }, [session, onRetry]);
+
+  const handleView = useCallback(() => {
+    onView(session.session_id);
+  }, [session.session_id, onView]);
+
+  return (
+    <div
+      onClick={handleView}
+      className="group p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer border border-transparent hover:border-gray-100 relative"
+    >
+      <div className="flex items-start justify-between mb-1.5 gap-2">
+        <div className="flex items-center gap-1.5">
+          {session.status === 'completed' && (
+            <CheckCircle className="w-4 h-4 text-ios-green" />
+          )}
+          {session.status === 'processing' && (
+            <div className="w-4 h-4 border-2 border-ios-blue border-t-transparent rounded-full animate-spin" />
+          )}
+          {session.status === 'failed' && (
+            <AlertCircle className="w-4 h-4 text-ios-red" />
+          )}
+          {session.status === 'stopped' && (
+            <AlertCircle className="w-4 h-4 text-orange-500" />
+          )}
+          <span className={`text-[13px] font-medium ${
+            session.status === 'completed' ? 'text-black' :
+            session.status === 'processing' ? 'text-ios-blue' :
+            session.status === 'failed' ? 'text-ios-red' :
+            session.status === 'stopped' ? 'text-orange-600' : 'text-ios-gray'
+          }`}>
+            {session.status === 'completed' && '已完成'}
+            {session.status === 'processing' && '处理中'}
+            {session.status === 'queued' && '排队中'}
+            {session.status === 'failed' && '失败'}
+            {session.status === 'stopped' && '已停止'}
+          </span>
+        </div>
+
+        <span className="text-[11px] text-ios-gray/70 font-medium">
+          {new Date(session.created_at).toLocaleDateString()}
+        </span>
+      </div>
+
+      <p className="text-[13px] text-ios-gray leading-snug line-clamp-2 mb-2 pr-6">
+        {session.original_text?.substring(0, 100)}...
+      </p>
+
+      {session.status === 'processing' && (
+        <div className="w-full bg-gray-100 rounded-full h-1 mb-1">
+          <div
+            className="bg-ios-blue h-1 rounded-full"
+            style={{ width: `${session.progress}%` }}
+          />
+        </div>
+      )}
+
+      {/* 操作按钮 */}
+      <div className="flex items-center justify-between mt-1">
+        {session.status === 'failed' && (
+          <button
+            onClick={handleRetry}
+            className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
+          >
+            继续处理
+          </button>
+        )}
+        <button
+          onClick={handleDelete}
+          className="p-1.5 text-gray-300 hover:text-ios-red hover:bg-red-50 rounded-lg transition-colors ml-auto"
+          title="删除会话"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {session.status === 'failed' && session.current_position < session.total_segments && (
+        <div className="text-[11px] text-ios-red bg-red-50 px-2 py-1 rounded mt-1">
+          {session.error_message ? '发生错误' : '网络超时'}
+        </div>
+      )}
+    </div>
+  );
+});
+
+SessionItem.displayName = 'SessionItem';
 
 const WorkspacePage = () => {
   const [text, setText] = useState('');
@@ -17,31 +116,13 @@ const WorkspacePage = () => {
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadSessions();
-    loadQueueStatus();
-    
-    // 降低队列状态更新频率到10秒，减少服务器负载
-    const interval = setInterval(loadQueueStatus, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    // 如果有活跃会话,每3秒更新进度（从2秒增加到3秒，减少请求频率）
-    if (activeSession) {
-      const interval = setInterval(() => {
-        updateSessionProgress(activeSession);
-      }, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [activeSession]);
-
-  const loadSessions = async () => {
+  // 使用 useCallback 优化函数引用稳定性
+  const loadSessions = useCallback(async () => {
     try {
       setIsLoadingSessions(true);
       const response = await optimizationAPI.listSessions();
       setSessions(response.data);
-      
+
       // 查找正在处理的会话
       const processing = response.data.find(
         s => s.status === 'processing' || s.status === 'queued'
@@ -54,36 +135,39 @@ const WorkspacePage = () => {
     } finally {
       setIsLoadingSessions(false);
     }
-  };
+  }, []);
 
-  const loadQueueStatus = async () => {
+  // loadQueueStatus 不依赖 activeSession，避免 useEffect 重复触发
+  const loadQueueStatus = useCallback(async () => {
     try {
-      const response = await optimizationAPI.getQueueStatus(activeSession);
+      const response = await optimizationAPI.getQueueStatus();
       setQueueStatus(response.data);
     } catch (error) {
       console.error('加载队列状态失败:', error);
     }
-  };
+  }, []);
 
-  const updateSessionProgress = async (sessionId) => {
+  const updateSessionProgress = useCallback(async (sessionId) => {
     try {
       const response = await optimizationAPI.getSessionProgress(sessionId);
       const progress = response.data;
-      
-      // 更新会话列表中的进度
-      setSessions(prev =>
-        prev.map(s =>
-          s.session_id === sessionId
-            ? { ...s, ...progress }
-            : s
-        )
-      );
-      
+
+      // 更新会话列表中的进度 - 只在数据有变化时更新
+      setSessions(prev => {
+        const target = prev.find(s => s.session_id === sessionId);
+        if (target && target.progress === progress.progress && target.status === progress.status) {
+          return prev; // 无变化，不触发重渲染
+        }
+        return prev.map(s =>
+          s.session_id === sessionId ? { ...s, ...progress } : s
+        );
+      });
+
       // 如果会话完成,刷新列表
       if (progress.status === 'completed' || progress.status === 'failed') {
         setActiveSession(null);
         loadSessions();
-        
+
         if (progress.status === 'completed') {
           toast.success('优化完成!');
         } else {
@@ -93,9 +177,31 @@ const WorkspacePage = () => {
     } catch (error) {
       console.error('更新进度失败:', error);
     }
-  };
+  }, [loadSessions]);
 
-  const handleStartOptimization = async () => {
+  // 初始加载 - 只在组件挂载时执行一次
+  useEffect(() => {
+    loadSessions();
+    loadQueueStatus();
+  }, [loadSessions, loadQueueStatus]);
+
+  // 队列状态轮询 - 独立的 useEffect，避免与初始加载混淆
+  useEffect(() => {
+    const interval = setInterval(loadQueueStatus, 15000);
+    return () => clearInterval(interval);
+  }, [loadQueueStatus]);
+
+  useEffect(() => {
+    // 如果有活跃会话,每4秒更新进度（进一步降低频率）
+    if (activeSession) {
+      const interval = setInterval(() => {
+        updateSessionProgress(activeSession);
+      }, 4000);
+      return () => clearInterval(interval);
+    }
+  }, [activeSession, updateSessionProgress]);
+
+  const handleStartOptimization = useCallback(async () => {
     if (!text.trim()) {
       toast.error('请输入要优化的文本');
       return;
@@ -111,7 +217,7 @@ const WorkspacePage = () => {
         original_text: text,
         processing_mode: processingMode,
       });
-      
+
       setActiveSession(response.data.session_id);
       toast.success('优化任务已启动');
       setText('');
@@ -121,16 +227,14 @@ const WorkspacePage = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [text, processingMode, isSubmitting, loadSessions]);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('cardKey');
     navigate('/');
-  };
+  }, [navigate]);
 
-  const handleDeleteSession = async (event, session) => {
-    event.stopPropagation();
-
+  const handleDeleteSession = useCallback(async (session) => {
     const confirmDelete = window.confirm('确认删除该会话及其结果吗?');
     if (!confirmDelete) {
       return;
@@ -147,15 +251,13 @@ const WorkspacePage = () => {
       console.error('删除会话失败:', error);
       toast.error(error.response?.data?.detail || '删除会话失败');
     }
-  };
+  }, [activeSession, loadSessions]);
 
-  const handleViewSession = (sessionId) => {
+  const handleViewSession = useCallback((sessionId) => {
     navigate(`/session/${sessionId}`);
-  };
+  }, [navigate]);
 
-  const handleRetrySegment = async (event, session) => {
-    event.stopPropagation();
-
+  const handleRetrySegment = useCallback(async (session) => {
     if (session.status !== 'failed') {
       return;
     }
@@ -174,21 +276,12 @@ const WorkspacePage = () => {
       console.error('重试失败:', error);
       toast.error(error.response?.data?.detail || '重试失败，请稍后再试');
     }
-  };
+  }, [loadSessions]);
 
-  const renderStatusAction = (session) => {
-    if (session.status === 'failed') {
-      return (
-        <button
-          onClick={(event) => handleRetrySegment(event, session)}
-          className="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
-        >
-          继续处理
-        </button>
-      );
-    }
-    return null;
-  };
+  // 使用 useMemo 缓存当前活跃会话的数据
+  const currentActiveSessionData = useMemo(() => {
+    return sessions.find(s => s.session_id === activeSession);
+  }, [sessions, activeSession]);
 
 
   return (
@@ -339,7 +432,7 @@ const WorkspacePage = () => {
             </div>
 
             {/* 活跃会话进度 */}
-            {activeSession && sessions.find(s => s.session_id === activeSession) && (
+            {activeSession && currentActiveSessionData && (
               <div className="bg-white rounded-2xl shadow-ios p-5 border border-blue-100">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-[17px] font-bold text-black flex items-center gap-2">
@@ -350,9 +443,9 @@ const WorkspacePage = () => {
                     进行中
                   </span>
                 </div>
-                
+
                 {(() => {
-                  const session = sessions.find(s => s.session_id === activeSession);
+                  const session = currentActiveSessionData;
                   const getStageName = (stage) => {
                     if (stage === 'polish') return '论文润色';
                     if (stage === 'emotion_polish') return '感情文章润色';
@@ -377,12 +470,12 @@ const WorkspacePage = () => {
                           />
                         </div>
                       </div>
-                      
+
                       <div className="flex justify-between items-center text-[13px]">
                         <span className="text-ios-gray">
                           进度: <span className="font-medium text-black">{session.current_position + 1}</span> / {session.total_segments} 段
                         </span>
-                        
+
                         {session.status === 'queued' && queueStatus?.your_position && (
                           <div className="flex items-center gap-1.5 text-ios-orange">
                             <Clock className="w-3.5 h-3.5" />
@@ -428,75 +521,14 @@ const WorkspacePage = () => {
                   </div>
                 ) : (
                   sessions.map((session) => (
-                    <div
+                    <SessionItem
                       key={session.id}
-                      onClick={() => handleViewSession(session.session_id)}
-                      className="group p-3 rounded-xl hover:bg-gray-50 transition-all cursor-pointer border border-transparent hover:border-gray-100 relative"
-                    >
-                      <div className="flex items-start justify-between mb-1.5 gap-2">
-                        <div className="flex items-center gap-1.5">
-                          {session.status === 'completed' && (
-                            <CheckCircle className="w-4 h-4 text-ios-green" />
-                          )}
-                          {session.status === 'processing' && (
-                            <div className="w-4 h-4 border-2 border-ios-blue border-t-transparent rounded-full animate-spin" />
-                          )}
-                          {session.status === 'failed' && (
-                            <AlertCircle className="w-4 h-4 text-ios-red" />
-                          )}
-                          {session.status === 'stopped' && (
-                            <AlertCircle className="w-4 h-4 text-orange-500" />
-                          )}
-                          <span className={`text-[13px] font-medium ${
-                            session.status === 'completed' ? 'text-black' :
-                            session.status === 'processing' ? 'text-ios-blue' :
-                            session.status === 'failed' ? 'text-ios-red' :
-                            session.status === 'stopped' ? 'text-orange-600' : 'text-ios-gray'
-                          }`}>
-                            {session.status === 'completed' && '已完成'}
-                            {session.status === 'processing' && '处理中'}
-                            {session.status === 'queued' && '排队中'}
-                            {session.status === 'failed' && '失败'}
-                            {session.status === 'stopped' && '已停止'}
-                          </span>
-                        </div>
-                        
-                        <span className="text-[11px] text-ios-gray/70 font-medium">
-                          {new Date(session.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                      
-                      <p className="text-[13px] text-ios-gray leading-snug line-clamp-2 mb-2 pr-6">
-                        {session.original_text?.substring(0, 100)}...
-                      </p>
-                      
-                      {session.status === 'processing' && (
-                        <div className="w-full bg-gray-100 rounded-full h-1 mb-1">
-                          <div
-                            className="bg-ios-blue h-1 rounded-full"
-                            style={{ width: `${session.progress}%` }}
-                          />
-                        </div>
-                      )}
-
-                      {/* 操作按钮 - 悬停显示或移动端常显 */}
-                      <div className="flex items-center justify-between mt-1">
-                         {renderStatusAction(session)}
-                         <button
-                            onClick={(event) => handleDeleteSession(event, session)}
-                            className="p-1.5 text-gray-300 hover:text-ios-red hover:bg-red-50 rounded-lg transition-colors ml-auto"
-                            title="删除会话"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                      </div>
-
-                      {session.status === 'failed' && session.current_position < session.total_segments && (
-                         <div className="text-[11px] text-ios-red bg-red-50 px-2 py-1 rounded mt-1">
-                           {session.error_message ? '发生错误' : '网络超时'}
-                         </div>
-                      )}
-                    </div>
+                      session={session}
+                      activeSession={activeSession}
+                      onView={handleViewSession}
+                      onDelete={handleDeleteSession}
+                      onRetry={handleRetrySegment}
+                    />
                   ))
                 )}
               </div>

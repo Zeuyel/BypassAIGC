@@ -560,49 +560,73 @@ async def get_active_sessions(
     _: str = Depends(get_admin_from_token),
     db: Session = Depends(get_db)
 ) -> List[Dict[str, Any]]:
-    """获取所有活跃会话（处理中和排队中）"""
-    active_sessions = db.query(OptimizationSession).filter(
+    """获取所有活跃会话（处理中和排队中）- 优化版本，使用批量查询避免N+1问题"""
+    # 使用 joinedload 预加载用户信息，避免N+1查询
+    active_sessions = db.query(OptimizationSession).options(
+        joinedload(OptimizationSession.user),
+        defer(OptimizationSession.original_text)  # 延迟加载大文本字段
+    ).filter(
         OptimizationSession.status.in_(["processing", "queued"])
     ).order_by(OptimizationSession.created_at.desc()).all()
-    
+
+    if not active_sessions:
+        return []
+
+    # 批量获取会话ID
+    session_ids = [s.id for s in active_sessions]
+
+    # 批量查询原文长度和预览（避免加载完整文本）
+    text_info = db.query(
+        OptimizationSession.id,
+        func.length(OptimizationSession.original_text).label('length'),
+        func.substring(OptimizationSession.original_text, 1, 200).label('preview')
+    ).filter(
+        OptimizationSession.id.in_(session_ids)
+    ).all()
+    text_info_map = {
+        item.id: {'length': item.length or 0, 'preview': item.preview or ""}
+        for item in text_info
+    }
+
+    # 批量查询已完成段落数
+    segments_stats = db.query(
+        OptimizationSegment.session_id,
+        func.sum(case((OptimizationSegment.status == 'completed', 1), else_=0)).label('completed')
+    ).filter(
+        OptimizationSegment.session_id.in_(session_ids)
+    ).group_by(OptimizationSegment.session_id).all()
+
+    segments_map = {stat.session_id: int(stat.completed or 0) for stat in segments_stats}
+
     result = []
+    now = datetime.utcnow()
     for session in active_sessions:
-        # 获取用户信息
-        user = db.query(User).filter(User.id == session.user_id).first()
-        
-        # 计算已处理段落数
-        completed_segments = db.query(OptimizationSegment).filter(
-            OptimizationSegment.session_id == session.id,
-            OptimizationSegment.status == "completed"
-        ).count()
-        
         # 计算处理时间
         processing_time = None
         if session.status == "processing" and session.created_at:
-            processing_time = (datetime.utcnow() - session.created_at).total_seconds()
-        
-        # 统计文本字数
-        original_char_count = len(session.original_text) if session.original_text else 0
-        
+            processing_time = (now - session.created_at).total_seconds()
+
+        text_data = text_info_map.get(session.id, {'length': 0, 'preview': ""})
+
         result.append({
             "id": session.id,
             "session_id": session.session_id,
             "user_id": session.user_id,
-            "card_key": user.card_key if user else "未知",
+            "card_key": session.user.card_key if session.user else "未知",
             "status": session.status,
             "progress": session.progress,
             "current_stage": session.current_stage,
             "current_position": session.current_position,
             "total_segments": session.total_segments,
-            "processed_segments": completed_segments,
-            "original_text": session.original_text[:200] if session.original_text else "",
-            "original_char_count": original_char_count,
+            "processed_segments": segments_map.get(session.id, 0),
+            "original_text": text_data['preview'],
+            "original_char_count": text_data['length'],
             "processing_mode": session.processing_mode,
             "created_at": session.created_at.isoformat() if session.created_at else None,
             "processing_time": processing_time,
             "error_message": session.error_message
         })
-    
+
     return result
 
 
