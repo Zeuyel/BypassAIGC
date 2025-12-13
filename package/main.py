@@ -44,9 +44,9 @@ backend_path = os.path.join(APP_DIR, 'backend') if not getattr(sys, 'frozen', Fa
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 import uvicorn
@@ -57,7 +57,7 @@ from app.database import init_db
 from app.routes import admin, prompts, optimization
 from app.models.models import CustomPrompt
 from app.database import SessionLocal
-from app.services.ai_service import get_default_polish_prompt, get_default_enhance_prompt
+from app.services.ai_service import AIService, get_default_polish_prompt, get_default_enhance_prompt
 
 # 检查默认密钥（仅警告，不退出）
 if settings.SECRET_KEY == "your-secret-key-change-this-in-production":
@@ -95,6 +95,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加中间件：为所有 API 响应添加禁止缓存的头部
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    """为 API 请求添加禁止缓存的响应头"""
+    response = await call_next(request)
+    
+    # 只对 API 路径添加禁止缓存头，静态资源可以缓存
+    if request.url.path.startswith('/api/'):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    
+    return response
 
 # 注册 API 路由（添加 /api 前缀，与 backend/app/main.py 保持一致）
 app.include_router(admin.router, prefix="/api")
@@ -155,24 +169,29 @@ async def startup_event():
 @app.get("/health")
 async def health_check():
     """健康检查"""
-    return {"status": "healthy"}
+    return JSONResponse(
+        content={"status": "healthy"},
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+    )
 
 
 async def _check_model_health(model_name: str, model: str, api_key: Optional[str], base_url: Optional[str]) -> dict:
     """检查单个模型的健康状态"""
-    from app.services.ai_service import AIService
-    
     try:
         service = AIService(
             model=model,
             api_key=api_key,
             base_url=base_url
         )
-        # 发送简单测试请求验证模型可用性
+        # 发送最小化测试请求验证模型可用性，减少API成本
         await service.complete(
-            messages=[{"role": "user", "content": "test"}],
-            temperature=0.7,
-            max_tokens=10
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0,
+            max_tokens=5
         )
         return {
             "status": "available",
@@ -227,7 +246,15 @@ async def check_models_health():
         if results["models"]["emotion"]["status"] == "unavailable":
             results["overall_status"] = "degraded"
     
-    return results
+    # 返回带缓存控制头的响应，确保数据始终是最新的
+    return JSONResponse(
+        content=results,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
+    )
 
 
 # 挂载静态文件（前端构建产物）
