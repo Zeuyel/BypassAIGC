@@ -10,6 +10,7 @@ import webbrowser
 import threading
 import time
 import signal
+from typing import Optional
 
 # 获取应用运行目录
 if getattr(sys, 'frozen', False):
@@ -155,6 +156,78 @@ async def startup_event():
 async def health_check():
     """健康检查"""
     return {"status": "healthy"}
+
+
+async def _check_model_health(model_name: str, model: str, api_key: Optional[str], base_url: Optional[str]) -> dict:
+    """检查单个模型的健康状态"""
+    from app.services.ai_service import AIService
+    
+    try:
+        service = AIService(
+            model=model,
+            api_key=api_key,
+            base_url=base_url
+        )
+        # 发送简单测试请求验证模型可用性
+        await service.complete(
+            messages=[{"role": "user", "content": "test"}],
+            temperature=0.7,
+            max_tokens=10
+        )
+        return {
+            "status": "available",
+            "model": model,
+            "base_url": base_url
+        }
+    except Exception as e:
+        return {
+            "status": "unavailable",
+            "model": model,
+            "base_url": base_url,
+            "error": str(e)
+        }
+
+
+@app.get("/api/health/models")
+async def check_models_health():
+    """检查 AI 模型可用性"""
+    results = {
+        "overall_status": "healthy",
+        "models": {}
+    }
+    
+    # 检查润色模型
+    results["models"]["polish"] = await _check_model_health(
+        "polish",
+        settings.POLISH_MODEL,
+        settings.POLISH_API_KEY,
+        settings.POLISH_BASE_URL
+    )
+    if results["models"]["polish"]["status"] == "unavailable":
+        results["overall_status"] = "degraded"
+    
+    # 检查增强模型
+    results["models"]["enhance"] = await _check_model_health(
+        "enhance",
+        settings.ENHANCE_MODEL,
+        settings.ENHANCE_API_KEY,
+        settings.ENHANCE_BASE_URL
+    )
+    if results["models"]["enhance"]["status"] == "unavailable":
+        results["overall_status"] = "degraded"
+    
+    # 检查感情润色模型（如果配置了）
+    if settings.EMOTION_MODEL:
+        results["models"]["emotion"] = await _check_model_health(
+            "emotion",
+            settings.EMOTION_MODEL,
+            settings.EMOTION_API_KEY,
+            settings.EMOTION_BASE_URL
+        )
+        if results["models"]["emotion"]["status"] == "unavailable":
+            results["overall_status"] = "degraded"
+    
+    return results
 
 
 # 挂载静态文件（前端构建产物）
