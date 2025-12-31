@@ -55,6 +55,8 @@ import uvicorn
 from app.config import settings
 from app.database import init_db
 from app.routes import admin, prompts, optimization
+from app.word_formatter import router as word_formatter_router
+from app.word_formatter.services import get_job_manager
 from app.models.models import CustomPrompt
 from app.database import SessionLocal
 from app.services.ai_service import get_default_polish_prompt, get_default_enhance_prompt
@@ -114,6 +116,7 @@ async def add_no_cache_headers(request: Request, call_next):
 app.include_router(admin.router, prefix="/api")
 app.include_router(prompts.router, prefix="/api")
 app.include_router(optimization.router, prefix="/api")
+app.include_router(word_formatter_router, prefix="/api")
 
 
 @app.on_event("startup")
@@ -132,7 +135,7 @@ async def startup_event():
     try:
         # 检查是否已存在系统提示词
         polish_prompt = db.query(CustomPrompt).filter(
-            CustomPrompt.is_system == True,
+            CustomPrompt.is_system.is_(True),
             CustomPrompt.stage == "polish"
         ).first()
         
@@ -147,7 +150,7 @@ async def startup_event():
             db.add(polish_prompt)
         
         enhance_prompt = db.query(CustomPrompt).filter(
-            CustomPrompt.is_system == True,
+            CustomPrompt.is_system.is_(True),
             CustomPrompt.stage == "enhance"
         ).first()
         
@@ -164,6 +167,13 @@ async def startup_event():
         db.commit()
     finally:
         db.close()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """关闭时清理资源"""
+    job_manager = get_job_manager()
+    await job_manager.shutdown()
 
 
 @app.get("/health")
@@ -346,7 +356,16 @@ if os.path.exists(STATIC_DIR):
         if os.path.exists(index_file):
             return FileResponse(index_file)
         return {"error": "Workspace page not found"}
-    
+
+    @app.get("/word-formatter")
+    @app.get("/word-formatter/{path:path}")
+    async def serve_word_formatter(path: str = ""):
+        """服务 Word 格式化页面"""
+        index_file = os.path.join(STATIC_DIR, 'index.html')
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        return {"error": "Word formatter page not found"}
+
     @app.get("/session/{session_id}")
     async def serve_session(session_id: str):
         """服务会话详情页面"""

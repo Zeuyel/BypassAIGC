@@ -37,6 +37,12 @@ hidden_imports = [
     'sse_starlette',
     'redis',
     'dotenv',
+    # Word 格式化模块依赖
+    'mistune',
+    'docx',
+    'lxml',
+    'lxml.etree',
+    'lxml._elementpath',
 ]
 
 # 收集 uvicorn 和其他依赖的子模块
@@ -46,6 +52,10 @@ hidden_imports += collect_submodules('pydantic')
 hidden_imports += collect_submodules('pydantic_settings')
 hidden_imports += collect_submodules('fastapi')
 hidden_imports += collect_submodules('starlette')
+# Word 格式化模块子模块
+hidden_imports += collect_submodules('mistune')
+hidden_imports += collect_submodules('docx')
+hidden_imports += collect_submodules('lxml')
 
 # 分析主入口文件
 a = Analysis(
