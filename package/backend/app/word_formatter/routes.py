@@ -10,6 +10,7 @@ import io
 import json
 from datetime import datetime
 from typing import List, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -489,11 +490,23 @@ async def download_result(
 
     filename = job.output_filename or "formatted.docx"
 
+    # RFC 5987: URL encode filename for Content-Disposition header
+    # to support non-ASCII characters (e.g., Chinese filenames)
+    encoded_filename = quote(filename, safe='')
+
+    # Provide ASCII-safe fallback for legacy clients
+    try:
+        filename.encode('ascii')
+        ascii_fallback = filename
+    except UnicodeEncodeError:
+        # For non-ASCII filenames, provide a generic fallback
+        ascii_fallback = "download.docx"
+
     return StreamingResponse(
         io.BytesIO(job.output_bytes),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Disposition": f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded_filename}",
         },
     )
 
