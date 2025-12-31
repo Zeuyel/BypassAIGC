@@ -81,6 +81,11 @@ class CompileOptions:
     toc_title: str = "目 录"
     auto_fix: bool = True
     max_fix_iterations: int = 3
+    # 标题编号配置
+    enable_heading_numbering: bool = True
+    heading_numbering_max_level: int = 3
+    heading_numbering_separator: str = "."
+    heading_number_suffix: str = " "
 
 
 ProgressCallback = Callable[[CompileProgress], None]
@@ -183,6 +188,10 @@ def compile_document(
             include_cover=options.include_cover,
             include_toc=options.include_toc,
             toc_title=options.toc_title,
+            enable_heading_numbering=options.enable_heading_numbering,
+            heading_numbering_max_level=options.heading_numbering_max_level,
+            heading_numbering_separator=options.heading_numbering_separator,
+            heading_number_suffix=options.heading_number_suffix,
         )
         docx_bytes = render_docx(ast, spec, reference_bytes, render_opts)
 

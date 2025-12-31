@@ -40,6 +40,15 @@ from .services import (
     validate_custom_spec,
     PreprocessConfig,
     PreprocessResult,
+    # Format Checker
+    FormatChecker,
+    FormatCheckResult,
+    FormatIssue,
+    CheckMode,
+    IssueSeverity,
+    IssueType,
+    check_format,
+    PARAGRAPH_TYPES,
 )
 from .utils.docx_text import extract_text_from_docx
 
@@ -57,6 +66,9 @@ class FormatRequest(BaseModel):
     include_cover: bool = True
     include_toc: bool = True
     toc_title: str = "目 录"
+    # 标题编号配置
+    enable_heading_numbering: bool = True
+    heading_numbering_max_level: int = 3
 
 
 class FormatFileRequest(BaseModel):
@@ -67,6 +79,9 @@ class FormatFileRequest(BaseModel):
     include_cover: bool = True
     include_toc: bool = True
     toc_title: str = "目 录"
+    # 标题编号配置
+    enable_heading_numbering: bool = True
+    heading_numbering_max_level: int = 3
 
 
 class GenerateSpecRequest(BaseModel):
@@ -154,6 +169,53 @@ class PreprocessResultResponse(BaseModel):
     integrity_check_passed: bool = False
     warnings: List[str] = []
     error: Optional[str] = None
+
+
+# Format Check Request/Response Models
+class FormatCheckRequest(BaseModel):
+    """Request for format checking."""
+    text: str = Field(..., min_length=10, description="原始文章文本")
+    mode: str = Field("loose", description="检测模式: loose(宽松) 或 strict(严格)")
+
+
+class FormatIssueResponse(BaseModel):
+    """Format issue in check result."""
+    line: int
+    paragraph_index: int
+    issue_type: str
+    severity: str
+    message: str
+    suggestion: str
+    content_preview: str = ""
+
+
+class FormatParagraphResponse(BaseModel):
+    """Paragraph info in format check result."""
+    index: int
+    text: str
+    line_start: int
+    line_end: int
+    paragraph_type: str = "body"
+    confidence: float = 1.0
+    is_auto_detected: bool = True
+
+
+class FormatCheckResponse(BaseModel):
+    """Response for format check."""
+    success: bool
+    is_valid: bool = False
+    mode: str = "loose"
+    issues: List[FormatIssueResponse] = []
+    paragraphs: List[FormatParagraphResponse] = []
+    marked_text: str = ""
+    type_statistics: dict = {}
+    original_hash: str = ""
+    error: Optional[str] = None
+
+
+class ParagraphTypesResponse(BaseModel):
+    """Response for paragraph types."""
+    types: dict
 
 
 # Saved Spec Request/Response Models
@@ -337,6 +399,8 @@ async def format_text(
         include_cover=request.include_cover,
         include_toc=request.include_toc,
         toc_title=request.toc_title,
+        enable_heading_numbering=request.enable_heading_numbering,
+        heading_numbering_max_level=request.heading_numbering_max_level,
     )
 
     # Create job
@@ -371,6 +435,8 @@ async def format_file(
     include_cover: bool = Query(True),
     include_toc: bool = Query(True),
     toc_title: str = Query("目 录"),
+    enable_heading_numbering: bool = Query(True),
+    heading_numbering_max_level: int = Query(3),
     background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db)
 ):
@@ -444,6 +510,8 @@ async def format_file(
         include_cover=include_cover,
         include_toc=include_toc,
         toc_title=toc_title,
+        enable_heading_numbering=enable_heading_numbering,
+        heading_numbering_max_level=heading_numbering_max_level,
     )
 
     # Create job
@@ -1059,3 +1127,189 @@ async def delete_saved_spec(
     print(f"[WORD-FORMATTER] 删除规范 user_id={user.id} spec_id={spec_id}", flush=True)
 
     return {"message": "规范已删除"}
+
+
+# ============ Format Check API Endpoints ============
+
+@router.get("/format-check/types", response_model=ParagraphTypesResponse)
+async def get_paragraph_types():
+    """Get available paragraph types and their descriptions."""
+    return ParagraphTypesResponse(types=PARAGRAPH_TYPES)
+
+
+@router.post("/format-check/text", response_model=FormatCheckResponse)
+async def format_check_text(
+    card_key: str,
+    request: FormatCheckRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Check text format (synchronous, no AI required).
+
+    This endpoint detects Markdown format issues and auto-identifies paragraph types
+    based on rules. Users can choose between 'loose' and 'strict' check modes.
+    """
+    user = get_current_user(card_key, db)
+
+    print(f"\n[WORD-FORMATTER] ========== 文章格式检测请求 ==========", flush=True)
+    print(f"[WORD-FORMATTER] 用户ID: {user.id}", flush=True)
+    print(f"[WORD-FORMATTER] 文本长度: {len(request.text)} 字符", flush=True)
+    print(f"[WORD-FORMATTER] 检测模式: {request.mode}", flush=True)
+
+    try:
+        # Perform format check
+        result = check_format(request.text, mode=request.mode)
+
+        print(f"[WORD-FORMATTER] ✅ 格式检测完成", flush=True)
+        print(f"[WORD-FORMATTER] 是否通过: {result.is_valid}", flush=True)
+        print(f"[WORD-FORMATTER] 问题数量: {len(result.issues)}", flush=True)
+        print(f"[WORD-FORMATTER] 段落数量: {len(result.paragraphs)}", flush=True)
+        print(f"[WORD-FORMATTER] ===========================================\n", flush=True)
+
+        return FormatCheckResponse(
+            success=result.success,
+            is_valid=result.is_valid,
+            mode=result.mode.value,
+            issues=[
+                FormatIssueResponse(
+                    line=issue.line,
+                    paragraph_index=issue.paragraph_index,
+                    issue_type=issue.issue_type.value,
+                    severity=issue.severity.value,
+                    message=issue.message,
+                    suggestion=issue.suggestion,
+                    content_preview=issue.content_preview
+                )
+                for issue in result.issues
+            ],
+            paragraphs=[
+                FormatParagraphResponse(
+                    index=p.index,
+                    text=p.text,
+                    line_start=p.line_start,
+                    line_end=p.line_end,
+                    paragraph_type=p.paragraph_type,
+                    confidence=p.confidence,
+                    is_auto_detected=p.is_auto_detected
+                )
+                for p in result.paragraphs
+            ],
+            marked_text=result.marked_text,
+            type_statistics=result.type_statistics,
+            original_hash=result.original_hash,
+            error=result.error
+        )
+
+    except Exception as e:
+        print(f"[WORD-FORMATTER] ❌ 格式检测失败: {e}", flush=True)
+        print(f"[WORD-FORMATTER] ===========================================\n", flush=True)
+        raise HTTPException(status_code=500, detail=f"格式检测失败: {str(e)}")
+
+
+@router.post("/format-check/file", response_model=FormatCheckResponse)
+async def format_check_file(
+    card_key: str,
+    file: UploadFile = File(...),
+    mode: str = Query("loose", description="检测模式: loose(宽松) 或 strict(严格)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Check file format (synchronous, no AI required).
+
+    Supports .docx, .txt, .md files.
+    """
+    user = get_current_user(card_key, db)
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="文件名不能为空")
+
+    print(f"\n[WORD-FORMATTER] ========== 文件格式检测请求 ==========", flush=True)
+    print(f"[WORD-FORMATTER] 用户ID: {user.id}", flush=True)
+    print(f"[WORD-FORMATTER] 文件名: {file.filename}", flush=True)
+    print(f"[WORD-FORMATTER] 检测模式: {mode}", flush=True)
+
+    # Check file extension
+    ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
+    if ext not in {"docx", "txt", "md", "markdown"}:
+        raise HTTPException(status_code=400, detail="仅支持 .docx, .txt, .md 文件")
+
+    # Read file content
+    content = await file.read()
+
+    print(f"[WORD-FORMATTER] 文件大小: {len(content)} 字节", flush=True)
+
+    # Check file size limit
+    max_size_mb = settings.MAX_UPLOAD_FILE_SIZE_MB
+    if max_size_mb > 0:
+        file_size_mb = len(content) / (1024 * 1024)
+        if file_size_mb > max_size_mb:
+            raise HTTPException(
+                status_code=400,
+                detail=f"文件大小 ({file_size_mb:.1f} MB) 超过限制 ({max_size_mb} MB)"
+            )
+
+    # Extract text based on file type
+    if ext == "docx":
+        try:
+            text = extract_text_from_docx(content)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"无法解析 docx 文件: {e}")
+    else:
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError:
+            try:
+                text = content.decode("gbk")
+            except UnicodeDecodeError:
+                raise HTTPException(status_code=400, detail="无法解析文件编码")
+
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="文件内容为空")
+
+    try:
+        # Perform format check
+        result = check_format(text, mode=mode)
+
+        print(f"[WORD-FORMATTER] ✅ 文件格式检测完成", flush=True)
+        print(f"[WORD-FORMATTER] 是否通过: {result.is_valid}", flush=True)
+        print(f"[WORD-FORMATTER] 问题数量: {len(result.issues)}", flush=True)
+        print(f"[WORD-FORMATTER] ===========================================\n", flush=True)
+
+        return FormatCheckResponse(
+            success=result.success,
+            is_valid=result.is_valid,
+            mode=result.mode.value,
+            issues=[
+                FormatIssueResponse(
+                    line=issue.line,
+                    paragraph_index=issue.paragraph_index,
+                    issue_type=issue.issue_type.value,
+                    severity=issue.severity.value,
+                    message=issue.message,
+                    suggestion=issue.suggestion,
+                    content_preview=issue.content_preview
+                )
+                for issue in result.issues
+            ],
+            paragraphs=[
+                FormatParagraphResponse(
+                    index=p.index,
+                    text=p.text,
+                    line_start=p.line_start,
+                    line_end=p.line_end,
+                    paragraph_type=p.paragraph_type,
+                    confidence=p.confidence,
+                    is_auto_detected=p.is_auto_detected
+                )
+                for p in result.paragraphs
+            ],
+            marked_text=result.marked_text,
+            type_statistics=result.type_statistics,
+            original_hash=result.original_hash,
+            error=result.error
+        )
+
+    except Exception as e:
+        print(f"[WORD-FORMATTER] ❌ 文件格式检测失败: {e}", flush=True)
+        print(f"[WORD-FORMATTER] ===========================================\n", flush=True)
+        raise HTTPException(status_code=500, detail=f"格式检测失败: {str(e)}")

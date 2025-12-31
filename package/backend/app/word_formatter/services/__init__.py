@@ -58,6 +58,17 @@ from .preprocessor import (
     ParagraphInfo,
     VALID_PARAGRAPH_TYPES,
 )
+from .format_checker import (
+    FormatChecker,
+    FormatCheckResult,
+    FormatIssue,
+    CheckMode,
+    IssueSeverity,
+    IssueType,
+    ParagraphInfo as FormatParagraphInfo,
+    check_format,
+    PARAGRAPH_TYPES,
+)
 
 __all__ = [
     # AST Generator
@@ -109,4 +120,14 @@ __all__ = [
     "PreprocessPhase",
     "ParagraphInfo",
     "VALID_PARAGRAPH_TYPES",
+    # Format Checker
+    "FormatChecker",
+    "FormatCheckResult",
+    "FormatIssue",
+    "CheckMode",
+    "IssueSeverity",
+    "IssueType",
+    "FormatParagraphInfo",
+    "check_format",
+    "PARAGRAPH_TYPES",
 ]

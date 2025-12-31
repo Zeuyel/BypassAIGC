@@ -8,6 +8,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import WordFormatterPage from './pages/WordFormatterPage';
 import SpecGeneratorPage from './pages/SpecGeneratorPage';
 import ArticlePreprocessorPage from './pages/ArticlePreprocessorPage';
+import FormatCheckerPage from './pages/FormatCheckerPage';
 import './index.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -94,6 +95,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ArticlePreprocessorPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/format-checker"
+          element={
+            <ProtectedRoute>
+              <FormatCheckerPage />
             </ProtectedRoute>
           }
         />

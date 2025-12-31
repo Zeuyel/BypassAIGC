@@ -591,7 +591,7 @@ const SpecGeneratorPage = () => {
 
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <button
-                    onClick={() => navigate('/article-preprocessor', {
+                    onClick={() => navigate('/format-checker', {
                       state: {
                         specJson: isEditing ? editedSpecJson : generatedSpec,
                         specName: specName,
@@ -599,7 +599,7 @@ const SpecGeneratorPage = () => {
                     })}
                     className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2 transition-colors"
                   >
-                    下一步: 预处理文章
+                    下一步: 格式检测
                     <ArrowLeft className="w-4 h-4 rotate-180" />
                   </button>
                 </div>

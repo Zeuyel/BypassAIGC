@@ -39,22 +39,82 @@ def _align_to_docx(align: str):
     }[align]
 
 
+class HeadingNumberer:
+    """多级标题编号管理器。
+
+    支持最多 6 级标题编号，格式如：1, 1.1, 1.1.1, 1.1.1.1, ...
+    每当高级标题出现时，自动重置所有低级标题计数器。
+    """
+
+    def __init__(self, max_level: int = 3, separator: str = "."):
+        self._counters = [0] * 6  # 支持 6 级标题
+        self._max_level = min(max_level, 6)
+        self._separator = separator
+
+    def reset(self) -> None:
+        """重置所有计数器。"""
+        self._counters = [0] * 6
+
+    def next_number(self, level: int) -> str:
+        """获取指定级别的下一个编号。
+
+        Args:
+            level: 标题级别 (1-6)
+
+        Returns:
+            格式化的编号字符串，如 "1", "1.1", "1.1.1"
+        """
+        if level < 1 or level > self._max_level:
+            return ""
+
+        idx = level - 1
+
+        # 递增当前级别计数器
+        self._counters[idx] += 1
+
+        # 重置所有更低级别的计数器
+        for i in range(idx + 1, 6):
+            self._counters[i] = 0
+
+        # 构建编号字符串
+        parts = [str(self._counters[i]) for i in range(level)]
+        return self._separator.join(parts)
+
+
 @dataclass
 class RenderOptions:
     include_cover: bool = True
     include_toc: bool = True
     toc_title: str = "目 录"
     toc_levels: int = 3
+    # 标题编号配置
+    enable_heading_numbering: bool = True
+    heading_numbering_max_level: int = 3
+    heading_numbering_separator: str = "."
+    heading_number_suffix: str = " "  # 编号与标题文本之间的分隔符
 
 
 _FRONT_HEADINGS: Set[str] = {
-    "摘要", "关键词", "关键字", "Abstract", "Key words", "Key Words",
-    "致谢", "谢辞", "参考文献", "References", "目录", "目 录",
+    "摘要", "关键词", "关键字", "abstract", "key words", "keywords",
+    "致谢", "谢辞", "参考文献", "references", "目录", "目 录",
 }
 
 _FRONT_ONLY_HEADINGS: Set[str] = {
-    "摘要", "关键词", "关键字", "Abstract", "Key words", "Key Words", "Keywords",
+    "摘要", "关键词", "关键字", "abstract", "key words", "keywords",
 }
+
+# 匹配已有编号的正则表达式：如 "1 标题", "1.2 标题", "1.2.3 标题" 等
+_EXISTING_HEADING_NUMBER_RE = re.compile(r"^(\d+(?:\.\d+)*)\s+(.+)$")
+
+
+def _is_front_heading(text: str) -> bool:
+    """检查是否为前置标题（不区分大小写）。"""
+    return text.lower() in _FRONT_HEADINGS or text in _FRONT_HEADINGS
+
+
+def _is_front_only_heading(text: str) -> bool:
+    """检查是否为仅前置标题（不区分大小写）。"""
+    return text.lower() in _FRONT_ONLY_HEADINGS or text in _FRONT_ONLY_HEADINGS
 
 
 def _apply_page_numbering_ooxml(docx_bytes: bytes, spec: StyleSpec) -> bytes:
@@ -126,6 +186,35 @@ def _insert_toc_paragraph(doc: Document, title: str, front_style: str, max_level
     run2 = p2.add_run("（在 Word 中右键目录 → 更新域）")
 
 
+def _detect_heading_level_offset(ast: DocumentAST) -> int:
+    """检测标题级别偏移量。
+
+    如果文档中最小的标题级别不是 1（例如用户用 ## 作为一级标题），
+    计算需要减去的偏移量，使其归一化为从 1 开始。
+
+    Args:
+        ast: 文档 AST
+
+    Returns:
+        偏移量（0 表示无需调整，1 表示所有级别减 1，以此类推）
+    """
+    min_level = None
+    for block in ast.blocks:
+        if isinstance(block, HeadingBlock):
+            # 跳过前置标题（摘要、Abstract 等通常是单独设置的）
+            heading_text = block.text.strip().lower()
+            if heading_text in _FRONT_HEADINGS:
+                continue
+            if min_level is None or block.level < min_level:
+                min_level = block.level
+
+    # 如果没有正文标题或最小级别已是 1，无需调整
+    if min_level is None or min_level <= 1:
+        return 0
+
+    return min_level - 1
+
+
 def render_docx(
     ast: DocumentAST,
     spec: StyleSpec,
@@ -168,9 +257,24 @@ def render_docx(
     fig_counter = 0
     table_counter = 0
 
+    # 检测标题级别偏移（支持 ## 作为一级标题等情况）
+    heading_level_offset = _detect_heading_level_offset(ast)
+
+    # 初始化标题编号器
+    heading_numberer = HeadingNumberer(
+        max_level=options.heading_numbering_max_level,
+        separator=options.heading_numbering_separator,
+    ) if options.enable_heading_numbering else None
+
     for block in ast.blocks:
         if isinstance(block, HeadingBlock):
             heading_text = block.text.strip()
+
+            # 清除已有的编号前缀（如 "1 标题" -> "标题"）
+            existing_match = _EXISTING_HEADING_NUMBER_RE.match(heading_text)
+            if existing_match:
+                heading_text = existing_match.group(2)
+
             if heading_text in {"摘要"}:
                 current_section = "cn_abstract"
             elif heading_text in {"关键词", "关键字"}:
@@ -179,7 +283,7 @@ def render_docx(
                 current_section = "en_abstract"
             elif heading_text.lower() in {"key words", "keywords"}:
                 current_section = "en_keywords"
-            elif heading_text in {"参考文献", "References"}:
+            elif heading_text.lower() in {"参考文献", "references"}:
                 current_section = "references"
             else:
                 current_section = "body"
@@ -187,25 +291,36 @@ def render_docx(
             if (
                 need_page_numbering
                 and not main_section_inserted
-                and heading_text not in _FRONT_ONLY_HEADINGS
+                and not _is_front_only_heading(heading_text)
                 and len(doc.paragraphs) > 0
             ):
                 doc.add_section(WD_SECTION.NEW_PAGE)
                 main_section_inserted = True
 
-            if heading_text in _FRONT_HEADINGS:
+            if _is_front_heading(heading_text):
                 style_id = "FrontHeading"
+                display_text = heading_text
             else:
-                if block.level == 1:
+                # 应用级别偏移（支持 ## 作为一级标题等情况）
+                effective_level = max(1, block.level - heading_level_offset)
+
+                if effective_level == 1:
                     style_id = "H1"
-                elif block.level == 2:
+                elif effective_level == 2:
                     style_id = "H2"
-                elif block.level == 3:
+                elif effective_level == 3:
                     style_id = "H3"
                 else:
                     style_id = "H3"
 
-            p = doc.add_paragraph(heading_text)
+                # 为非前置标题添加编号（使用调整后的级别）
+                if heading_numberer and effective_level <= options.heading_numbering_max_level:
+                    number = heading_numberer.next_number(effective_level)
+                    display_text = f"{number}{options.heading_number_suffix}{heading_text}"
+                else:
+                    display_text = heading_text
+
+            p = doc.add_paragraph(display_text)
             if style_id in doc.styles:
                 p.style = doc.styles[style_id]
             else:

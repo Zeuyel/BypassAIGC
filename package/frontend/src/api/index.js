@@ -240,6 +240,29 @@ export const wordFormatterAPI = {
   // Delete preprocess job
   deletePreprocessJob: (jobId) =>
     api.delete(`/word-formatter/preprocess/${jobId}`),
+
+  // ============ Format Check API (No AI Required) ============
+
+  // Get paragraph types
+  getFormatParagraphTypes: () =>
+    api.get('/word-formatter/format-check/types'),
+
+  // Check text format (synchronous)
+  checkTextFormat: (text, mode = 'loose') =>
+    api.post('/word-formatter/format-check/text', { text, mode }, {
+      timeout: 30000,
+    }),
+
+  // Check file format (synchronous)
+  checkFileFormat: (file, mode = 'loose') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/word-formatter/format-check/file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      params: { mode },
+      timeout: 60000,
+    });
+  },
 };
 
 export default api;
