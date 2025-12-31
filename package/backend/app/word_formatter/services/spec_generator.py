@@ -285,6 +285,11 @@ async def ai_generate_spec(
     返回:
         StyleSpec 对象
     """
+    print("\n" + "=" * 80, flush=True)
+    print("[WORD-FORMATTER] AI 规范生成开始", flush=True)
+    print(f"[WORD-FORMATTER] 用户需求长度: {len(requirements)} 字符", flush=True)
+    print(f"[WORD-FORMATTER] 用户需求内容: {requirements[:300]}{'...' if len(requirements) > 300 else ''}", flush=True)
+
     prompt = AI_SPEC_GENERATION_PROMPT.format(requirements=requirements)
 
     messages = [
@@ -292,28 +297,55 @@ async def ai_generate_spec(
         {"role": "user", "content": prompt}
     ]
 
+    print(f"[WORD-FORMATTER] AI 请求消息数: {len(messages)}", flush=True)
+    print(f"[WORD-FORMATTER] 提示词总长度: {len(prompt)} 字符", flush=True)
+    print("[WORD-FORMATTER] 正在调用 AI 服务...", flush=True)
+
     try:
         response = await ai_service.complete(messages)
+
+        print(f"[WORD-FORMATTER] AI 响应长度: {len(response)} 字符", flush=True)
 
         # 尝试解析 JSON
         # 移除可能的 markdown 代码块标记
         json_str = response.strip()
         if json_str.startswith("```json"):
             json_str = json_str[7:]
+            print("[WORD-FORMATTER] 检测到 ```json 标记，已移除", flush=True)
         if json_str.startswith("```"):
             json_str = json_str[3:]
+            print("[WORD-FORMATTER] 检测到 ``` 标记，已移除", flush=True)
         if json_str.endswith("```"):
             json_str = json_str[:-3]
+            print("[WORD-FORMATTER] 检测到结尾 ``` 标记，已移除", flush=True)
 
         spec_dict = json.loads(json_str.strip())
 
+        print("[WORD-FORMATTER] JSON 解析成功", flush=True)
+        print(f"[WORD-FORMATTER] 规范名称: {spec_dict.get('meta', {}).get('name', 'Unknown')}", flush=True)
+        print(f"[WORD-FORMATTER] 样式数量: {len(spec_dict.get('styles', {}))}", flush=True)
+
         # 验证并构建 StyleSpec
         spec = StyleSpec.model_validate(spec_dict)
+
+        print("[WORD-FORMATTER] 规范验证成功", flush=True)
+        print("=" * 80 + "\n", flush=True)
+
         return spec
 
     except json.JSONDecodeError as e:
+        print("=" * 80, flush=True)
+        print(f"[WORD-FORMATTER] ⚠️ AI 返回的规范 JSON 格式错误: {e}", flush=True)
+        print(f"[WORD-FORMATTER] 原始响应内容: {response[:500] if 'response' in dir() else 'N/A'}...", flush=True)
+        print("=" * 80 + "\n", flush=True)
         raise ValueError(f"AI 返回的规范格式不正确: {e}")
     except Exception as e:
+        import traceback
+        print("=" * 80, flush=True)
+        print(f"[WORD-FORMATTER] ⚠️ AI 规范生成失败: {e}", flush=True)
+        print(f"[WORD-FORMATTER] 异常类型: {type(e).__name__}", flush=True)
+        print(f"[WORD-FORMATTER] 堆栈跟踪:\n{traceback.format_exc()}", flush=True)
+        print("=" * 80 + "\n", flush=True)
         raise ValueError(f"生成规范失败: {e}")
 
 

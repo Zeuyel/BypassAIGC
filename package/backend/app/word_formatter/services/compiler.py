@@ -115,7 +115,15 @@ def compile_document(
     options = options or CompileOptions()
     warnings: List[str] = []
 
+    print("\n" + "=" * 80, flush=True)
+    print("[WORD-FORMATTER] 文档编译开始 (规则模式)", flush=True)
+    print(f"[WORD-FORMATTER] 输入文本长度: {len(text)} 字符", flush=True)
+    print(f"[WORD-FORMATTER] 规范名称: {options.spec_name or 'Default'}", flush=True)
+    print(f"[WORD-FORMATTER] 包含封面: {options.include_cover}", flush=True)
+    print(f"[WORD-FORMATTER] 包含目录: {options.include_toc}", flush=True)
+
     def notify(phase: CompilePhase, progress: float, msg: str, detail: str = None):
+        print(f"[WORD-FORMATTER] [{phase.value}] {msg}" + (f" - {detail}" if detail else ""), flush=True)
         if progress_callback:
             progress_callback(CompileProgress(phase, progress, msg, detail))
 
@@ -240,7 +248,15 @@ async def compile_document_with_ai(
     options = options or CompileOptions()
     warnings: List[str] = []
 
+    print("\n" + "=" * 80, flush=True)
+    print("[WORD-FORMATTER] 文档编译开始 (AI 智能模式)", flush=True)
+    print(f"[WORD-FORMATTER] 输入文本长度: {len(text)} 字符", flush=True)
+    print(f"[WORD-FORMATTER] 规范名称: {options.spec_name or 'Default'}", flush=True)
+    print(f"[WORD-FORMATTER] 包含封面: {options.include_cover}", flush=True)
+    print(f"[WORD-FORMATTER] 包含目录: {options.include_toc}", flush=True)
+
     def notify(phase: CompilePhase, progress: float, msg: str, detail: str = None):
+        print(f"[WORD-FORMATTER] [{phase.value}] {msg}" + (f" - {detail}" if detail else ""), flush=True)
         if progress_callback:
             progress_callback(CompileProgress(phase, progress, msg, detail))
 
@@ -250,12 +266,14 @@ async def compile_document_with_ai(
         input_format = options.input_format
         if input_format == InputFormat.AUTO:
             input_format = detect_input_format(text)
+            print(f"[WORD-FORMATTER] 自动检测格式: {input_format.value}", flush=True)
 
         if input_format == InputFormat.MARKDOWN:
             ast = parse_markdown_to_ast(text)
             notify(CompilePhase.PARSE, 1.0, "Markdown 解析完成")
         else:
             paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+            print(f"[WORD-FORMATTER] 分割得到 {len(paragraphs)} 个段落", flush=True)
             notify(CompilePhase.PARSE, 0.3, "调用 AI 识别段落类型...")
 
             # ai_identify_paragraph_types 内部已有 fallback 机制
@@ -268,11 +286,21 @@ async def compile_document_with_ai(
 
     except Exception as e:
         # 如果整个流程失败，尝试降级到非 AI 编译
+        import traceback
+        print("=" * 80, flush=True)
+        print(f"[WORD-FORMATTER] ⚠️ AI 编译流程异常: {e}", flush=True)
+        print(f"[WORD-FORMATTER] 异常类型: {type(e).__name__}", flush=True)
+        print(f"[WORD-FORMATTER] 堆栈跟踪:\n{traceback.format_exc()}", flush=True)
+        print("[WORD-FORMATTER] 尝试降级到规则编译模式...", flush=True)
+        print("=" * 80, flush=True)
+
         try:
             warnings.append(f"AI 编译失败，已降级到规则模式: {str(e)}")
             notify(CompilePhase.PARSE, 0.5, "降级到规则解析模式...")
-            return await compile_document(text, options, progress_callback)
+            # compile_document 是同步函数，直接调用即可
+            return compile_document(text, options, progress_callback)
         except Exception as fallback_error:
+            print(f"[WORD-FORMATTER] ❌ 降级编译也失败: {fallback_error}", flush=True)
             return CompileResult(
                 success=False,
                 error=f"编译失败: {str(fallback_error)} (原始错误: {str(e)})",
@@ -289,6 +317,7 @@ async def _compile_from_ast(
     """Internal: compile from parsed AST."""
 
     def notify(phase: CompilePhase, progress: float, msg: str, detail: str = None):
+        print(f"[WORD-FORMATTER] [{phase.value}] {msg}" + (f" - {detail}" if detail else ""), flush=True)
         if progress_callback:
             progress_callback(CompileProgress(phase, progress, msg, detail))
 
@@ -297,23 +326,30 @@ async def _compile_from_ast(
 
         if options.custom_spec:
             spec = options.custom_spec
+            spec_source = "自定义规范"
         elif options.spec_name and options.spec_name in builtin_specs():
             spec = builtin_specs()[options.spec_name]
+            spec_source = f"内置规范: {options.spec_name}"
         else:
             spec = build_generic_spec()
+            spec_source = "默认通用规范"
 
-        notify(CompilePhase.SPEC, 1.0, "格式规范已加载")
+        print(f"[WORD-FORMATTER] 规范来源: {spec_source}", flush=True)
+        notify(CompilePhase.SPEC, 1.0, "格式规范已加载", spec.meta.get("name", "Unknown"))
 
         notify(CompilePhase.TEMPLATE, 0.0, "生成模板文档...")
 
         if options.reference_docx_bytes:
             reference_bytes = patch_reference_docx(spec, options.reference_docx_bytes)
+            print(f"[WORD-FORMATTER] 使用自定义参考模板，大小: {len(options.reference_docx_bytes)} 字节", flush=True)
         else:
             reference_bytes = generate_reference_docx(spec)
+            print(f"[WORD-FORMATTER] 生成新模板，大小: {len(reference_bytes)} 字节", flush=True)
 
         notify(CompilePhase.TEMPLATE, 1.0, "模板文档已生成")
 
         notify(CompilePhase.RENDER, 0.0, "渲染文档...")
+        print(f"[WORD-FORMATTER] 渲染选项: 封面={options.include_cover}, 目录={options.include_toc}, 目录标题='{options.toc_title}'", flush=True)
 
         render_opts = RenderOptions(
             include_cover=options.include_cover,
@@ -322,25 +358,35 @@ async def _compile_from_ast(
         )
         docx_bytes = render_docx(ast, spec, reference_bytes, render_opts)
 
+        print(f"[WORD-FORMATTER] 渲染完成，文档大小: {len(docx_bytes)} 字节", flush=True)
         notify(CompilePhase.RENDER, 1.0, "文档渲染完成")
 
         notify(CompilePhase.VALIDATE, 0.0, "验证文档...")
 
         report = validate_docx(docx_bytes, spec)
 
-        notify(CompilePhase.VALIDATE, 1.0, "验证完成")
+        print(f"[WORD-FORMATTER] 验证结果: 错误={report.summary.errors}, 警告={report.summary.warnings}", flush=True)
+        notify(CompilePhase.VALIDATE, 1.0, "验证完成", f"错误: {report.summary.errors}, 警告: {report.summary.warnings}")
 
         if options.auto_fix and not report.summary.ok:
             notify(CompilePhase.FIX, 0.0, "自动修复...")
+            print(f"[WORD-FORMATTER] 开始自动修复，最大迭代次数: {options.max_fix_iterations}", flush=True)
 
             for i in range(options.max_fix_iterations):
                 docx_bytes = fix_docx(docx_bytes, report, spec)
                 report = validate_docx(docx_bytes, spec)
+                print(f"[WORD-FORMATTER] 修复迭代 {i + 1}: 错误={report.summary.errors}, 警告={report.summary.warnings}", flush=True)
                 if report.summary.ok:
+                    print(f"[WORD-FORMATTER] 修复成功，共迭代 {i + 1} 次", flush=True)
                     break
+
+            if not report.summary.ok:
+                print(f"[WORD-FORMATTER] ⚠️ 达到最大迭代次数后仍有 {report.summary.errors} 个错误", flush=True)
 
             notify(CompilePhase.FIX, 1.0, "修复完成")
 
+        print(f"[WORD-FORMATTER] 最终文档大小: {len(docx_bytes)} 字节", flush=True)
+        print("=" * 80 + "\n", flush=True)
         notify(CompilePhase.DONE, 1.0, "编译完成")
 
         return CompileResult(
@@ -353,6 +399,12 @@ async def _compile_from_ast(
         )
 
     except Exception as e:
+        import traceback
+        print("=" * 80, flush=True)
+        print(f"[WORD-FORMATTER] ❌ AST 编译失败: {e}", flush=True)
+        print(f"[WORD-FORMATTER] 异常类型: {type(e).__name__}", flush=True)
+        print(f"[WORD-FORMATTER] 堆栈跟踪:\n{traceback.format_exc()}", flush=True)
+        print("=" * 80 + "\n", flush=True)
         return CompileResult(
             success=False,
             error=str(e),

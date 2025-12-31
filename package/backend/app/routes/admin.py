@@ -25,6 +25,7 @@ from app.schemas import (
     UserUsageUpdate,
 )
 from app.services.concurrency import concurrency_manager
+from app.word_formatter.services.job_manager import get_job_manager
 from app.utils.auth import (
     create_access_token,
     generate_access_link,
@@ -367,6 +368,7 @@ async def get_statistics(_: str = Depends(get_admin_from_token), db: Session = D
             "paper_polish_enhance_count": paper_polish_enhance_count,
             "emotion_polish_count": emotion_polish_count,
         },
+        "word_formatter": get_job_manager().get_stats(),
     }
 
 

@@ -104,6 +104,11 @@ class JobManager:
         self._jobs[job_id] = job
         self._job_locks[job_id] = asyncio.Lock()
 
+        print(f"[WORD-FORMATTER] 创建任务 job_id={job_id[:8]}...", flush=True)
+        print(f"[WORD-FORMATTER] 用户ID: {user_id}", flush=True)
+        print(f"[WORD-FORMATTER] 输入文件: {input_file_name or '文本输入'}", flush=True)
+        print(f"[WORD-FORMATTER] 文本长度: {len(input_text or '')} 字符", flush=True)
+
         return job
 
     def get_job(self, job_id: str) -> Optional[Job]:
@@ -137,6 +142,10 @@ class JobManager:
         job = self._jobs.get(job_id)
         if not job:
             raise ValueError(f"Job not found: {job_id}")
+
+        print(f"\n[WORD-FORMATTER] ========== 开始执行任务 ==========", flush=True)
+        print(f"[WORD-FORMATTER] Job ID: {job_id[:8]}...", flush=True)
+        print(f"[WORD-FORMATTER] AI 模式: {'是' if ai_service else '否'}", flush=True)
 
         async with self._semaphore:
             async with self._job_locks[job_id]:
@@ -177,15 +186,26 @@ class JobManager:
                         job.status = JobStatus.COMPLETED
                         job.output_bytes = result.docx_bytes
                         job.output_filename = self._generate_output_filename(job)
+                        print(f"[WORD-FORMATTER] ✅ 任务完成 job_id={job_id[:8]}...", flush=True)
+                        print(f"[WORD-FORMATTER] 输出文件: {job.output_filename}", flush=True)
+                        print(f"[WORD-FORMATTER] 文件大小: {len(result.docx_bytes or b'')} 字节", flush=True)
                     else:
                         job.status = JobStatus.FAILED
                         job.error = result.error
+                        print(f"[WORD-FORMATTER] ❌ 任务失败 job_id={job_id[:8]}...", flush=True)
+                        print(f"[WORD-FORMATTER] 错误: {result.error}", flush=True)
 
                 except Exception as e:
+                    import traceback
                     job.status = JobStatus.FAILED
                     job.error = str(e)
+                    print(f"[WORD-FORMATTER] ❌ 任务异常 job_id={job_id[:8]}...", flush=True)
+                    print(f"[WORD-FORMATTER] 异常类型: {type(e).__name__}", flush=True)
+                    print(f"[WORD-FORMATTER] 异常信息: {e}", flush=True)
+                    print(f"[WORD-FORMATTER] 堆栈跟踪:\n{traceback.format_exc()}", flush=True)
 
                 job.updated_at = datetime.now()
+                print(f"[WORD-FORMATTER] ========== 任务执行结束 ==========\n", flush=True)
                 return job
 
     def _generate_output_filename(self, job: Job) -> str:

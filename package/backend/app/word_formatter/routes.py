@@ -200,11 +200,18 @@ async def generate_spec(
     user = get_current_user(card_key, db)
     check_usage_limit(user)
 
+    print(f"\n[WORD-FORMATTER] ========== AI 规范生成请求 ==========", flush=True)
+    print(f"[WORD-FORMATTER] 用户ID: {user.id}", flush=True)
+    print(f"[WORD-FORMATTER] 需求长度: {len(request.requirements)} 字符", flush=True)
+
     try:
         ai_service = get_ai_service()
         spec = await ai_generate_spec(request.requirements, ai_service)
 
         increment_usage(user, db)
+
+        print(f"[WORD-FORMATTER] ✅ 规范生成成功: {spec.meta.get('name', 'AI_Generated')}", flush=True)
+        print(f"[WORD-FORMATTER] ===========================================\n", flush=True)
 
         return {
             "success": True,
@@ -212,6 +219,8 @@ async def generate_spec(
             "spec_name": spec.meta.get("name", "AI_Generated"),
         }
     except Exception as e:
+        print(f"[WORD-FORMATTER] ❌ 规范生成失败: {e}", flush=True)
+        print(f"[WORD-FORMATTER] ===========================================\n", flush=True)
         raise HTTPException(status_code=500, detail=f"生成规范失败: {str(e)}")
 
 
@@ -228,6 +237,13 @@ async def format_text(
 
     if not request.text:
         raise HTTPException(status_code=400, detail="文本内容不能为空")
+
+    print(f"\n[WORD-FORMATTER] ========== 文本格式化请求 ==========", flush=True)
+    print(f"[WORD-FORMATTER] 用户ID: {user.id}", flush=True)
+    print(f"[WORD-FORMATTER] 文本长度: {len(request.text)} 字符", flush=True)
+    print(f"[WORD-FORMATTER] 规范: {request.spec_name or 'Default'}", flush=True)
+    print(f"[WORD-FORMATTER] AI 识别: {'是' if request.use_ai_recognition else '否'}", flush=True)
+    print(f"[WORD-FORMATTER] 封面: {'是' if request.include_cover else '否'}, 目录: {'是' if request.include_toc else '否'}", flush=True)
 
     # Parse input format
     try:
@@ -296,6 +312,12 @@ async def format_file(
     if not file.filename:
         raise HTTPException(status_code=400, detail="文件名不能为空")
 
+    print(f"\n[WORD-FORMATTER] ========== 文件格式化请求 ==========", flush=True)
+    print(f"[WORD-FORMATTER] 用户ID: {user.id}", flush=True)
+    print(f"[WORD-FORMATTER] 文件名: {file.filename}", flush=True)
+    print(f"[WORD-FORMATTER] 规范: {spec_name or 'Default'}", flush=True)
+    print(f"[WORD-FORMATTER] AI 识别: {'是' if use_ai_recognition else '否'}", flush=True)
+
     # Check file extension
     ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
     if ext not in {"docx", "txt", "md", "markdown"}:
@@ -303,6 +325,9 @@ async def format_file(
 
     # Read file content
     content = await file.read()
+
+    print(f"[WORD-FORMATTER] 文件大小: {len(content)} 字节", flush=True)
+    print(f"[WORD-FORMATTER] 文件类型: {ext}", flush=True)
 
     # Check file size limit (0 means unlimited)
     max_size_mb = settings.MAX_UPLOAD_FILE_SIZE_MB

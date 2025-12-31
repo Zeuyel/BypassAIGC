@@ -141,8 +141,20 @@ const WordFormatterPage = () => {
       es.close();
     });
 
-    es.onerror = () => {
+    es.onerror = (e) => {
+      // 检查是否是正常的连接关闭（如任务完成后）
+      if (es.readyState === EventSource.CLOSED) {
+        es.close();
+        return;
+      }
+
+      // 连接意外中断，尝试获取任务状态
       es.close();
+
+      // 延迟后刷新任务列表以获取最新状态
+      setTimeout(() => {
+        loadJobs();
+      }, 1000);
     };
   };
 
@@ -156,11 +168,11 @@ const WordFormatterPage = () => {
 
   const handleSubmit = async () => {
     if (inputMode === 'text' && !text.trim()) {
-      toast.error('Please enter text');
+      toast.error('请输入文本内容');
       return;
     }
     if (inputMode === 'file' && !file) {
-      toast.error('Please select a file');
+      toast.error('请选择文件');
       return;
     }
     if (isSubmitting || activeJob) {
@@ -189,12 +201,12 @@ const WordFormatterPage = () => {
       }
 
       setActiveJob(response.data.job_id);
-      toast.success('Task started');
+      toast.success('任务已开始');
       setText('');
       setFile(null);
       loadJobs();
     } catch (error) {
-      toast.error('Start failed: ' + (error.response?.data?.detail || error.message));
+      toast.error('启动失败: ' + (error.response?.data?.detail || error.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -208,17 +220,17 @@ const WordFormatterPage = () => {
 
   const handleDeleteJob = async (event, job) => {
     event.stopPropagation();
-    if (!window.confirm('Confirm delete this job?')) return;
+    if (!window.confirm('确定删除此任务？')) return;
 
     try {
       await wordFormatterAPI.deleteJob(job.job_id);
       if (activeJob === job.job_id) {
         setActiveJob(null);
       }
-      toast.success('Job deleted');
+      toast.success('任务已删除');
       loadJobs();
     } catch (error) {
-      toast.error('Delete failed');
+      toast.error('删除失败');
     }
   };
 
@@ -242,7 +254,7 @@ const WordFormatterPage = () => {
         setFile(droppedFile);
         setInputMode('file');
       } else {
-        toast.error('Only .docx, .txt, .md files supported');
+        toast.error('仅支持 .docx、.txt、.md 文件');
       }
     }
   };
@@ -258,7 +270,7 @@ const WordFormatterPage = () => {
       if (isValidFile(selectedFile)) {
         setFile(selectedFile);
       } else {
-        toast.error('Only .docx, .txt, .md files supported');
+        toast.error('仅支持 .docx、.txt、.md 文件');
       }
     }
   };
@@ -326,10 +338,10 @@ const WordFormatterPage = () => {
               <div className="p-4 flex items-start gap-3 bg-purple-50/50">
                 <Info className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
                 <div className="text-[15px] text-black">
-                  <p className="font-semibold mb-1 text-purple-600">AI Word Formatter</p>
+                  <p className="font-semibold mb-1 text-purple-600">AI Word 精确排版</p>
                   <p className="text-gray-700 leading-relaxed">
-                    Automatically format documents according to academic paper standards.
-                    Supports .docx, .txt, .md files or direct text input.
+                    根据学术论文规范自动排版文档。
+                    支持 .docx、.txt、.md 文件或直接输入文本。
                   </p>
                 </div>
               </div>
@@ -339,7 +351,7 @@ const WordFormatterPage = () => {
             <div className="bg-white rounded-2xl shadow-ios p-5">
               <div className="h-[40px] flex items-center justify-between mb-4">
                 <h2 className="text-[20px] font-bold text-black tracking-tight pl-1">
-                  New Task
+                  新建任务
                 </h2>
 
                 {/* Input Mode Toggle */}
@@ -353,7 +365,7 @@ const WordFormatterPage = () => {
                     }`}
                   >
                     <Upload className="w-4 h-4 inline mr-1" />
-                    File
+                    文件
                   </button>
                   <button
                     onClick={() => setInputMode('text')}
@@ -364,7 +376,7 @@ const WordFormatterPage = () => {
                     }`}
                   >
                     <FileText className="w-4 h-4 inline mr-1" />
-                    Text
+                    文本
                   </button>
                 </div>
               </div>
@@ -405,7 +417,7 @@ const WordFormatterPage = () => {
                         onClick={() => setFile(null)}
                         className="text-ios-red text-[13px] hover:underline"
                       >
-                        Remove
+                        移除
                       </button>
                     </div>
                   ) : (
@@ -414,17 +426,17 @@ const WordFormatterPage = () => {
                         <Upload className="w-6 h-6 text-gray-400" />
                       </div>
                       <div>
-                        <p className="text-black font-medium">Drag & drop file here</p>
-                        <p className="text-[13px] text-ios-gray">or</p>
+                        <p className="text-black font-medium">拖拽文件到此处</p>
+                        <p className="text-[13px] text-ios-gray">或</p>
                       </div>
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         className="px-4 py-2 bg-purple-500 text-white rounded-lg text-[14px] font-medium hover:bg-purple-600 transition-colors"
                       >
-                        Browse Files
+                        浏览文件
                       </button>
                       <p className="text-[12px] text-ios-gray">
-                        Supported: .docx, .txt, .md
+                        支持格式: .docx, .txt, .md
                       </p>
                     </div>
                   )}
@@ -437,11 +449,11 @@ const WordFormatterPage = () => {
                   <textarea
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    placeholder="Paste your document content here..."
+                    placeholder="在此粘贴文档内容..."
                     className="w-full h-64 px-4 py-3 bg-gray-50 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-500/20 transition-all text-[16px] leading-relaxed text-black placeholder-gray-400 border-none outline-none resize-none"
                   />
                   <div className="absolute bottom-3 right-3 text-[12px] text-ios-gray bg-white/80 px-2 py-1 rounded-md backdrop-blur-sm">
-                    {text.length} chars
+                    {text.length} 字符
                   </div>
                 </div>
               )}
@@ -451,7 +463,7 @@ const WordFormatterPage = () => {
                 {/* Spec Selection */}
                 <div>
                   <label className="block text-[13px] font-medium text-ios-gray mb-2 ml-1 uppercase tracking-wide">
-                    Format Spec
+                    排版规范
                   </label>
                   <select
                     value={selectedSpec}
@@ -473,7 +485,7 @@ const WordFormatterPage = () => {
                       onChange={(e) => setIncludeCover(e.target.checked)}
                       className="w-4 h-4 text-purple-500 rounded focus:ring-purple-500"
                     />
-                    <span className="text-[14px] text-black">Include Cover</span>
+                    <span className="text-[14px] text-black">封面页</span>
                   </label>
 
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -483,7 +495,7 @@ const WordFormatterPage = () => {
                       onChange={(e) => setIncludeToc(e.target.checked)}
                       className="w-4 h-4 text-purple-500 rounded focus:ring-purple-500"
                     />
-                    <span className="text-[14px] text-black">Include TOC</span>
+                    <span className="text-[14px] text-black">目录页</span>
                   </label>
 
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -495,7 +507,7 @@ const WordFormatterPage = () => {
                     />
                     <span className="text-[14px] text-black flex items-center gap-1">
                       <Sparkles className="w-3.5 h-3.5 text-purple-500" />
-                      AI Recognition
+                      AI 智能识别
                     </span>
                   </label>
                 </div>
@@ -511,12 +523,12 @@ const WordFormatterPage = () => {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Processing...
+                      处理中...
                     </>
                   ) : (
                     <>
                       <Play className="w-5 h-5 fill-current" />
-                      Start Format
+                      开始排版
                     </>
                   )}
                 </button>
@@ -529,10 +541,10 @@ const WordFormatterPage = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-[17px] font-bold text-black flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                    Processing
+                    处理中
                   </h2>
                   <span className="text-[13px] font-medium px-2 py-1 bg-purple-50 text-purple-600 rounded-md">
-                    {jobs.find(j => j.job_id === activeJob)?.phase || 'Running'}
+                    {jobs.find(j => j.job_id === activeJob)?.phase || '运行中'}
                   </span>
                 </div>
 
@@ -543,7 +555,7 @@ const WordFormatterPage = () => {
                       <div>
                         <div className="flex justify-between text-[13px] mb-2 font-medium">
                           <span className="text-ios-gray">
-                            {job?.message || 'Processing document...'}
+                            {job?.message || '正在处理文档...'}
                           </span>
                           <span className="text-purple-600">
                             {((job?.progress || 0) * 100).toFixed(0)}%
@@ -570,7 +582,7 @@ const WordFormatterPage = () => {
                 <div className="flex items-center gap-2">
                   <History className="w-5 h-5 text-ios-gray" />
                   <h2 className="text-[20px] font-bold text-black tracking-tight">
-                    History
+                    历史记录
                   </h2>
                 </div>
               </div>
@@ -586,7 +598,7 @@ const WordFormatterPage = () => {
                       <History className="w-6 h-6" />
                     </div>
                     <p className="text-ios-gray text-sm">
-                      No jobs yet
+                      暂无任务
                     </p>
                   </div>
                 ) : (
@@ -611,10 +623,10 @@ const WordFormatterPage = () => {
                             job.status === 'running' || job.status === 'pending' ? 'text-purple-600' :
                             job.status === 'failed' ? 'text-ios-red' : 'text-ios-gray'
                           }`}>
-                            {job.status === 'completed' && 'Completed'}
-                            {job.status === 'running' && 'Running'}
-                            {job.status === 'pending' && 'Pending'}
-                            {job.status === 'failed' && 'Failed'}
+                            {job.status === 'completed' && '已完成'}
+                            {job.status === 'running' && '运行中'}
+                            {job.status === 'pending' && '等待中'}
+                            {job.status === 'failed' && '失败'}
                           </span>
                         </div>
 
@@ -624,7 +636,7 @@ const WordFormatterPage = () => {
                       </div>
 
                       <p className="text-[13px] text-ios-gray leading-snug line-clamp-2 mb-2 pr-6">
-                        {job.input_file_name || job.output_filename || 'Text input'}
+                        {job.input_file_name || job.output_filename || '文本输入'}
                       </p>
 
                       {(job.status === 'running' || job.status === 'pending') && (
@@ -644,13 +656,13 @@ const WordFormatterPage = () => {
                             className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 flex items-center gap-1"
                           >
                             <Download className="w-3 h-3" />
-                            Download
+                            下载
                           </button>
                         )}
                         <button
                           onClick={(event) => handleDeleteJob(event, job)}
                           className="p-1.5 text-gray-300 hover:text-ios-red hover:bg-red-50 rounded-lg transition-colors ml-auto"
-                          title="Delete"
+                          title="删除"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

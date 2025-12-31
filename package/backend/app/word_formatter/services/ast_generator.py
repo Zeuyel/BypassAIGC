@@ -341,6 +341,15 @@ async def ai_identify_paragraph_types(
     返回:
         [{"text": "段落文本", "type": "heading_1|body|abstract|..."}]
     """
+    # 如果段落数量为 0，直接返回空列表
+    if not paragraphs:
+        print("[WORD-FORMATTER] AI 段落识别跳过：无段落输入", flush=True)
+        return []
+
+    print("\n" + "=" * 80, flush=True)
+    print("[WORD-FORMATTER] AI 段落类型识别开始", flush=True)
+    print(f"[WORD-FORMATTER] 待识别段落数量: {len(paragraphs)}", flush=True)
+
     # 构建识别提示词
     prompt = """你是一个论文结构识别专家。请分析以下段落，判断每个段落的类型。
 
@@ -361,39 +370,106 @@ async def ai_identify_paragraph_types(
 - table_caption: 表格标题
 
 请以 JSON 数组格式返回，每个元素包含 "index" 和 "type" 字段。
-只返回 JSON，不要其他文字。
+只返回 JSON，不要其他文字，不要使用 markdown 代码块。
 
 待分析的段落：
 """
 
-    for i, para in enumerate(paragraphs[:50]):  # 限制数量避免过长
+    # 限制段落数量避免过长
+    max_paragraphs = min(len(paragraphs), 50)
+    for i in range(max_paragraphs):
+        para = paragraphs[i]
         prompt += f"\n[{i}] {para[:200]}"  # 限制每段长度
 
     try:
         messages = [
-            {"role": "system", "content": "你是一个专业的论文结构识别助手，只返回JSON格式结果。"},
+            {"role": "system", "content": "你是一个专业的论文结构识别助手，只返回JSON格式结果，不要使用markdown代码块包裹。"},
             {"role": "user", "content": prompt}
         ]
 
+        # 详细日志：请求信息
+        print(f"[WORD-FORMATTER] AI 请求消息数: {len(messages)}", flush=True)
+        print(f"[WORD-FORMATTER] 系统提示词长度: {len(messages[0]['content'])} 字符", flush=True)
+        print(f"[WORD-FORMATTER] 用户提示词长度: {len(messages[1]['content'])} 字符", flush=True)
+        print("[WORD-FORMATTER] 正在调用 AI 服务...", flush=True)
+
         response = await ai_service.complete(messages)
 
+        # 详细日志：响应信息
+        print(f"[WORD-FORMATTER] AI 响应长度: {len(response)} 字符", flush=True)
+
         # 解析 AI 返回的 JSON
-        result = json.loads(response)
+        # 移除可能的 markdown 代码块标记
+        json_str = response.strip()
+        original_response = json_str  # 保留原始响应用于日志
+        if json_str.startswith("```json"):
+            json_str = json_str[7:]
+            print("[WORD-FORMATTER] 检测到 ```json 标记，已移除", flush=True)
+        if json_str.startswith("```"):
+            json_str = json_str[3:]
+            print("[WORD-FORMATTER] 检测到 ``` 标记，已移除", flush=True)
+        if json_str.endswith("```"):
+            json_str = json_str[:-3]
+            print("[WORD-FORMATTER] 检测到结尾 ``` 标记，已移除", flush=True)
+        json_str = json_str.strip()
+
+        result = json.loads(json_str)
+
+        # 验证返回结果格式
+        if not isinstance(result, list):
+            raise ValueError("AI 返回结果不是列表格式")
+
+        print(f"[WORD-FORMATTER] JSON 解析成功，识别到 {len(result)} 个结果项", flush=True)
 
         # 构建返回结果
         identified = []
+        valid_types = {
+            "title_cn", "title_en", "abstract_cn", "abstract_en",
+            "keywords_cn", "keywords_en", "heading_1", "heading_2",
+            "heading_3", "body", "reference", "acknowledgement",
+            "figure_caption", "table_caption"
+        }
+
+        type_counts = {}  # 统计各类型数量
         for i, para in enumerate(paragraphs):
             para_type = "body"
             for item in result:
-                if item.get("index") == i:
-                    para_type = item.get("type", "body")
+                if isinstance(item, dict) and item.get("index") == i:
+                    detected_type = item.get("type", "body")
+                    # 验证类型是否有效
+                    if detected_type in valid_types:
+                        para_type = detected_type
+                    else:
+                        print(f"[WORD-FORMATTER] 警告：段落[{i}] 检测到无效类型 '{detected_type}'，回退到 'body'", flush=True)
                     break
             identified.append({"text": para, "type": para_type})
+            type_counts[para_type] = type_counts.get(para_type, 0) + 1
+
+        # 输出类型统计
+        print("[WORD-FORMATTER] 段落类型统计:", flush=True)
+        for ptype, count in sorted(type_counts.items(), key=lambda x: -x[1]):
+            print(f"  - {ptype}: {count} 个", flush=True)
+        print("=" * 80 + "\n", flush=True)
 
         return identified
 
+    except json.JSONDecodeError as e:
+        # JSON 解析失败时回退到规则识别
+        print("=" * 80, flush=True)
+        print(f"[WORD-FORMATTER] ⚠️ AI 识别 JSON 解析失败: {e}", flush=True)
+        print(f"[WORD-FORMATTER] 原始响应内容: {response[:500] if 'response' in dir() else 'N/A'}...", flush=True)
+        print("[WORD-FORMATTER] 回退到规则识别模式", flush=True)
+        print("=" * 80 + "\n", flush=True)
+        return [{"text": para, "type": identify_paragraph_type(para)} for para in paragraphs]
     except Exception as e:
         # AI 识别失败时回退到规则识别
+        import traceback
+        print("=" * 80, flush=True)
+        print(f"[WORD-FORMATTER] ⚠️ AI 识别失败: {e}", flush=True)
+        print(f"[WORD-FORMATTER] 异常类型: {type(e).__name__}", flush=True)
+        print(f"[WORD-FORMATTER] 堆栈跟踪:\n{traceback.format_exc()}", flush=True)
+        print("[WORD-FORMATTER] 回退到规则识别模式", flush=True)
+        print("=" * 80 + "\n", flush=True)
         return [{"text": para, "type": identify_paragraph_type(para)} for para in paragraphs]
 
 
