@@ -175,7 +175,8 @@ def _insert_toc_paragraph(doc: Document, title: str, front_style: str, max_level
     doc.add_paragraph("")
     doc.add_paragraph("")
     p = doc.add_paragraph(title)
-    p.style = doc.styles[front_style]
+    if front_style in doc.styles:
+        p.style = doc.styles[front_style]
     p2 = doc.add_paragraph()
     run = p2.add_run()
     fld = OxmlElement("w:fldSimple")
@@ -309,7 +310,7 @@ def render_docx(
             p = doc.add_paragraph(display_text)
             if style_id in doc.styles:
                 p.style = doc.styles[style_id]
-            else:
+            elif "Body" in doc.styles:
                 p.style = doc.styles["Body"]
             continue
 
@@ -382,7 +383,8 @@ def render_docx(
                 else:
                     prefix = f"{idx}. " if block.ordered else "• "
                     p = doc.add_paragraph()
-                    p.style = doc.styles["Body"]
+                    if "Body" in doc.styles:
+                        p.style = doc.styles["Body"]
                     p.add_run(prefix)
                     _apply_inlines(p, item.inlines)
             continue
@@ -433,8 +435,8 @@ def render_docx(
             p = doc.add_paragraph()
             if "CodeBlock" in doc.styles:
                 p.style = doc.styles["CodeBlock"]
-            else:
-                p.style = doc.styles.get("Body", None)
+            elif "Body" in doc.styles:
+                p.style = doc.styles["Body"]
 
             # 特殊处理 Mermaid 流程图
             if block.language and block.language.lower() == "mermaid":
@@ -462,7 +464,8 @@ def render_docx(
                 doc.add_picture(block.path)
             else:
                 p = doc.add_paragraph(f"[图片占位：{block.path}]")
-                p.style = doc.styles["Body"]
+                if "Body" in doc.styles:
+                    p.style = doc.styles["Body"]
             if caption:
                 pcap = doc.add_paragraph(caption)
                 if "FigureCaption" in doc.styles:
