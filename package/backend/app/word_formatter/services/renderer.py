@@ -18,9 +18,11 @@ from docx.shared import Mm
 
 from ..models.ast import (
     BibliographyBlock,
+    CodeBlock,
     DocumentAST,
     FigureBlock,
     HeadingBlock,
+    Inline,
     ListBlock,
     ParagraphBlock,
     PageBreakBlock,
@@ -37,6 +39,52 @@ def _align_to_docx(align: str):
         "right": WD_ALIGN_PARAGRAPH.RIGHT,
         "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
     }[align]
+
+
+def _clear_paragraph_runs(p) -> None:
+    """清除段落中的所有 runs。"""
+    for r in list(p.runs):
+        try:
+            p._p.remove(r._r)
+        except Exception:
+            pass
+
+
+def _apply_inline_style(run, inline_type: str) -> None:
+    """根据 Inline 类型应用对应的样式到 run。"""
+    if inline_type == "bold":
+        run.bold = True
+    elif inline_type == "italic":
+        run.italic = True
+    elif inline_type == "underline":
+        run.underline = True
+    elif inline_type == "superscript":
+        run.font.superscript = True
+    elif inline_type == "subscript":
+        run.font.subscript = True
+    elif inline_type == "code":
+        run.font.name = "Consolas"
+
+
+def _apply_inlines(p, inlines: list) -> None:
+    """
+    将 Inline 列表渲染到段落中，保留富文本格式。
+
+    Args:
+        p: python-docx 段落对象
+        inlines: Inline 对象列表
+    """
+    for inline in inlines:
+        text = inline.text or ""
+        # 处理换行符
+        parts = text.split("\n")
+        for i, part in enumerate(parts):
+            if i > 0:
+                p.add_run().add_break()
+            if not part:
+                continue
+            run = p.add_run(part)
+            _apply_inline_style(run, inline.type)
 
 
 @dataclass
@@ -266,27 +314,40 @@ def render_docx(
             continue
 
         if isinstance(block, ParagraphBlock):
-            txt = block.text
-            if txt is None and block.inlines:
-                txt = "".join(i.text for i in block.inlines)
-            txt = (txt or "").strip()
-            if not txt:
+            inlines = block.inlines
+            raw_text = block.text
+            if raw_text is None and inlines:
+                raw_text = "".join(i.text for i in inlines)
+            if not (raw_text or "").strip():
                 continue
 
+            # 处理摘要/关键词前缀
             if spec.auto_prefix_abstract_keywords:
                 if current_section == "cn_abstract" and not abstract_prefixed:
-                    if not txt.startswith("摘要："):
-                        txt = "摘要：" + txt
+                    if not (raw_text or "").startswith("摘要："):
+                        if inlines:
+                            inlines = [Inline(type="text", text="摘要：")] + list(inlines)
+                        else:
+                            raw_text = "摘要：" + (raw_text or "")
                     abstract_prefixed = True
                 elif current_section == "en_abstract" and not abstract_prefixed:
-                    if not txt.lower().startswith("abstract:"):
-                        txt = "Abstract: " + txt
+                    if not (raw_text or "").lower().startswith("abstract:"):
+                        if inlines:
+                            inlines = [Inline(type="text", text="Abstract: ")] + list(inlines)
+                        else:
+                            raw_text = "Abstract: " + (raw_text or "")
                     abstract_prefixed = True
                 elif current_section in {"cn_keywords", "en_keywords"} and not keywords_prefixed:
-                    if current_section == "cn_keywords" and not txt.startswith(("关键词：", "关键字：")):
-                        txt = "关键词：" + _normalize_cn_keywords(txt)
-                    elif current_section == "en_keywords" and not txt.lower().startswith(("key words:", "keywords:")):
-                        txt = "Key words: " + _normalize_en_keywords(txt)
+                    if current_section == "cn_keywords" and not (raw_text or "").startswith(("关键词：", "关键字：")):
+                        if inlines:
+                            inlines = [Inline(type="text", text="关键词：")] + list(inlines)
+                        else:
+                            raw_text = "关键词：" + _normalize_cn_keywords(raw_text or "")
+                    elif current_section == "en_keywords" and not (raw_text or "").lower().startswith(("key words:", "keywords:")):
+                        if inlines:
+                            inlines = [Inline(type="text", text="Key words: ")] + list(inlines)
+                        else:
+                            raw_text = "Key words: " + _normalize_en_keywords(raw_text or "")
                     keywords_prefixed = True
 
             style_id = "Body"
@@ -297,25 +358,33 @@ def render_docx(
             elif current_section == "references":
                 style_id = "Reference"
 
-            p = doc.add_paragraph(txt)
+            p = doc.add_paragraph()
             if style_id in doc.styles:
                 p.style = doc.styles[style_id]
+            # 优先使用富文本渲染
+            if inlines:
+                _apply_inlines(p, inlines)
+            else:
+                p.add_run(raw_text or "")
             continue
 
         if isinstance(block, ListBlock):
             style_name = "ListNumber" if block.ordered else "ListBullet"
             use_style = style_name in doc.styles
             for idx, item in enumerate(block.items, start=1):
-                txt = "".join(i.text for i in item.inlines).strip()
-                if not txt:
+                raw_text = "".join(i.text for i in item.inlines)
+                if not raw_text.strip():
                     continue
                 if use_style:
-                    p = doc.add_paragraph(txt)
+                    p = doc.add_paragraph()
                     p.style = doc.styles[style_name]
+                    _apply_inlines(p, item.inlines)
                 else:
                     prefix = f"{idx}. " if block.ordered else "• "
-                    p = doc.add_paragraph(prefix + txt)
+                    p = doc.add_paragraph()
                     p.style = doc.styles["Body"]
+                    p.add_run(prefix)
+                    _apply_inlines(p, item.inlines)
             continue
 
         if isinstance(block, TableBlock):
@@ -334,17 +403,53 @@ def render_docx(
                     pcap.style = doc.styles["TableTitle"]
             if not block.rows:
                 continue
-            cols = max(len(r) for r in block.rows)
+            # 使用富文本列或纯文本列来计算列数
+            rows_for_cols = block.rows_inlines if block.rows_inlines else block.rows
+            cols = max(len(r) for r in rows_for_cols)
             table = doc.add_table(rows=len(block.rows), cols=cols)
             for r_i, row in enumerate(block.rows):
                 for c_i in range(cols):
                     cell = table.cell(r_i, c_i)
-                    cell.text = row[c_i] if c_i < len(row) else ""
-                    for p in cell.paragraphs:
-                        if "TableText" in doc.styles:
-                            p.style = doc.styles["TableText"]
-                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    # 优先使用富文本渲染
+                    cell_inlines = None
+                    if block.rows_inlines and r_i < len(block.rows_inlines):
+                        if c_i < len(block.rows_inlines[r_i]):
+                            cell_inlines = block.rows_inlines[r_i][c_i]
+                    cell_text = row[c_i] if c_i < len(row) else ""
+                    p = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
+                    _clear_paragraph_runs(p)
+                    if cell_inlines:
+                        _apply_inlines(p, cell_inlines)
+                    else:
+                        p.add_run(cell_text)
+                    if "TableText" in doc.styles:
+                        p.style = doc.styles["TableText"]
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             _apply_three_line_table(table)
+            continue
+
+        if isinstance(block, CodeBlock):
+            # 处理代码块
+            p = doc.add_paragraph()
+            if "CodeBlock" in doc.styles:
+                p.style = doc.styles["CodeBlock"]
+            else:
+                p.style = doc.styles.get("Body", None)
+
+            # 特殊处理 Mermaid 流程图
+            if block.language and block.language.lower() == "mermaid":
+                placeholder_run = p.add_run("[流程图占位：mermaid]")
+                placeholder_run.italic = True
+                # 添加代码内容作为参考
+                p2 = doc.add_paragraph()
+                if "CodeBlock" in doc.styles:
+                    p2.style = doc.styles["CodeBlock"]
+                code_run = p2.add_run(block.text or "")
+                code_run.font.name = "Consolas"
+            else:
+                # 普通代码块
+                code_run = p.add_run(block.text or "")
+                code_run.font.name = "Consolas"
             continue
 
         if isinstance(block, FigureBlock):

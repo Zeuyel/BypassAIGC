@@ -21,6 +21,7 @@ BlockType = Literal[
     "paragraph",
     "list",
     "table",
+    "code_block",
     "figure",
     "page_break",
     "section_break",
@@ -46,6 +47,13 @@ class ParagraphBlock(BaseModel):
         return v
 
 
+class CodeBlock(BaseModel):
+    """代码块，用于表示 Markdown 中的 fenced code block。"""
+    type: Literal["code_block"] = "code_block"
+    text: str
+    language: Optional[str] = None
+
+
 class ListItem(BaseModel):
     inlines: List[Inline]
 
@@ -59,6 +67,7 @@ class ListBlock(BaseModel):
 class TableBlock(BaseModel):
     type: Literal["table"] = "table"
     rows: List[List[str]]
+    rows_inlines: Optional[List[List[List[Inline]]]] = None  # 富文本表格行
     caption: Optional[str] = None
 
 
@@ -85,6 +94,7 @@ class BibliographyBlock(BaseModel):
 Block = Union[
     HeadingBlock,
     ParagraphBlock,
+    CodeBlock,
     ListBlock,
     TableBlock,
     FigureBlock,

@@ -16,6 +16,7 @@ import mistune
 
 from ..models.ast import (
     BibliographyBlock,
+    CodeBlock,
     DocumentAST,
     DocumentMeta,
     FigureBlock,
@@ -31,6 +32,12 @@ from ..models.ast import (
 
 
 _FRONT_MATTER_RE = re.compile(r"^\s*---\s*$", re.M)
+
+# 中文列表序号正则：匹配 "1）" "1、" "（1）" 等格式
+_LIST_PAREN_RE = re.compile(r"^(\s*)(\d+)[）\)]\s*")  # 1）或 1)
+_LIST_DUNHAO_RE = re.compile(r"^(\s*)(\d+)、\s*")    # 1、
+_LIST_PARENS_RE = re.compile(r"^(\s*)[（\(](\d+)[）\)]\s*")  # （1）或 (1)
+_CODE_FENCE_RE = re.compile(r"^\s*```")
 
 
 def _parse_front_matter(text: str) -> Tuple[Dict[str, str], str]:
@@ -58,6 +65,37 @@ def _parse_front_matter(text: str) -> Tuple[Dict[str, str], str]:
     return {}, text
 
 
+def _normalize_markdown_lists(text: str) -> str:
+    """
+    规范化中文列表序号为标准 Markdown 有序列表格式。
+
+    将以下格式转换为标准 Markdown 列表：
+    - "1）" -> "1. "
+    - "1、" -> "1. "
+    - "（1）" -> "1. "
+    """
+    lines = text.splitlines()
+    out: List[str] = []
+    in_fence = False
+
+    for line in lines:
+        # 检测代码块边界，避免在代码块内进行替换
+        if _CODE_FENCE_RE.match(line):
+            in_fence = not in_fence
+            out.append(line)
+            continue
+
+        if not in_fence:
+            # 按优先级依次替换中文列表序号
+            line = _LIST_PAREN_RE.sub(r"\1\2. ", line)
+            line = _LIST_DUNHAO_RE.sub(r"\1\2. ", line)
+            line = _LIST_PARENS_RE.sub(r"\1\2. ", line)
+
+        out.append(line)
+
+    return "\n".join(out)
+
+
 def _inlines_from_children(children: List[Dict[str, Any]]) -> List[Inline]:
     inlines: List[Inline] = []
     for ch in children:
@@ -82,19 +120,45 @@ def _inlines_from_children(children: List[Dict[str, Any]]) -> List[Inline]:
     return inlines
 
 
-def _collect_text(node: Dict[str, Any]) -> List[str]:
+def _collect_text(node: Any) -> List[str]:
+    """收集节点中的所有纯文本内容。"""
+    if isinstance(node, list):
+        out: List[str] = []
+        for n in node:
+            out.extend(_collect_text(n))
+        return out
+    if isinstance(node, str):
+        return [node]
+    if not isinstance(node, dict):
+        return []
     if "raw" in node and isinstance(node["raw"], str):
         return [node["raw"]]
     if "text" in node and isinstance(node["text"], str):
         return [node["text"]]
-    out: List[str] = []
+    out = []
     for c in node.get("children", []) or []:
         out.extend(_collect_text(c))
     return out
 
 
+def _inlines_from_table_cell(cell: Any) -> List[Inline]:
+    """从表格单元格中提取 Inline 列表，保留富文本格式。"""
+    if isinstance(cell, list):
+        return _inlines_from_children(cell)
+    if isinstance(cell, dict):
+        children = cell.get("children", []) or []
+        if children:
+            return _inlines_from_children(children)
+        # 单个节点作为列表处理
+        return _inlines_from_children([cell])
+    # 兜底：作为纯文本
+    return [Inline(type="text", text="".join(_collect_text(cell)))]
+
+
 def parse_markdown_to_ast(text: str) -> DocumentAST:
     meta_dict, body = _parse_front_matter(text)
+    # 规范化中文列表序号
+    body = _normalize_markdown_lists(body)
     meta = DocumentMeta(
         title_cn=meta_dict.get("title_cn"),
         title_en=meta_dict.get("title_en"),
@@ -151,14 +215,34 @@ def parse_markdown_to_ast(text: str) -> DocumentAST:
                     texts = [Inline(type="text", text="".join(_collect_text(item)))]
                 items.append(ListItem(inlines=texts))
             blocks.append(ListBlock(ordered=ordered, items=items))
+        elif t == "block_code":
+            # 处理代码块（fenced code block）
+            language = (n.get("info") or "").strip() or None
+            code_text = n.get("raw") or n.get("text") or ""
+            blocks.append(CodeBlock(text=code_text, language=language))
         elif t == "table":
             rows: List[List[str]] = []
+            rows_inlines: List[List[List[Inline]]] = []
             header = n.get("header", []) or []
             if header:
-                rows.append([ "".join(_collect_text(cell)) for cell in header ])
+                header_plain: List[str] = []
+                header_inlines: List[List[Inline]] = []
+                for cell in header:
+                    cell_inlines = _inlines_from_table_cell(cell)
+                    header_inlines.append(cell_inlines)
+                    header_plain.append("".join(i.text for i in cell_inlines))
+                rows.append(header_plain)
+                rows_inlines.append(header_inlines)
             for row in n.get("cells", []) or []:
-                rows.append([ "".join(_collect_text(cell)) for cell in row ])
-            blocks.append(TableBlock(rows=rows))
+                row_plain: List[str] = []
+                row_inlines: List[List[Inline]] = []
+                for cell in row:
+                    cell_inlines = _inlines_from_table_cell(cell)
+                    row_inlines.append(cell_inlines)
+                    row_plain.append("".join(i.text for i in cell_inlines))
+                rows.append(row_plain)
+                rows_inlines.append(row_inlines)
+            blocks.append(TableBlock(rows=rows, rows_inlines=rows_inlines if rows_inlines else None))
         elif t == "image":
             # Mistune 在 paragraph 中出现 image；这里不一定到达
             path = n.get("src") or ""
