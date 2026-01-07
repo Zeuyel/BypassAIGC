@@ -53,7 +53,7 @@ const ConfigManager = ({ adminToken }) => {
         EMOTION_BASE_URL: response.data.emotion?.base_url || '',
         MAX_CONCURRENT_USERS: response.data.system.max_concurrent_users?.toString() || '',
         HISTORY_COMPRESSION_THRESHOLD: response.data.system.history_compression_threshold?.toString() || '',
-        COMPRESSION_MODEL: response.data.system.compression_model || '',
+        COMPRESSION_MODEL: response.data.compression?.model || '',
         COMPRESSION_API_KEY: response.data.compression?.api_key || '',
         COMPRESSION_BASE_URL: response.data.compression?.base_url || '',
         DEFAULT_USAGE_LIMIT: response.data.system.default_usage_limit?.toString() || '',
