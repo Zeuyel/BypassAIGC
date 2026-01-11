@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { Settings, Save, RefreshCw, Cpu, Brain } from 'lucide-react';
+import ApiConfigGuide from './ApiConfigGuide';
 
 const ConfigManager = ({ adminToken }) => {
   const [loading, setLoading] = useState(false);
@@ -107,13 +108,19 @@ const ConfigManager = ({ adminToken }) => {
 
   return (
     <div className="space-y-6">
+      {/* API 配置教程 */}
+      <ApiConfigGuide />
+
       {/* 润色模型配置 */}
       <div className="bg-white rounded-2xl shadow-ios p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center">
             <Cpu className="w-5 h-5 text-teal-600" />
           </div>
-          <h3 className="text-lg font-bold text-gray-900">润色模型配置</h3>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">润色模型配置</h3>
+            <p className="text-xs text-gray-400">用于第一阶段：论文语言润色</p>
+          </div>
         </div>
 
         <div className="space-y-5">
@@ -128,19 +135,25 @@ const ConfigManager = ({ adminToken }) => {
               placeholder="gemini-2.5-pro"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
+            <p className="mt-1.5 text-xs text-gray-400">
+              推荐：gemini-2.5-pro、gpt-4o、claude-sonnet-4-20250514
+            </p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-500 mb-2">
-              API Key (可选)
+              API Key
             </label>
             <input
-              type="text"
+              type="password"
               value={formData.POLISH_API_KEY}
               onChange={(e) => setFormData({...formData, POLISH_API_KEY: e.target.value})}
-              placeholder="留空使用默认 OpenAI Key"
+              placeholder="sk-... 或 AIzaSy..."
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-mono"
             />
+            <p className="mt-1.5 text-xs text-gray-400">
+              从 API 服务商获取的密钥，请妥善保管
+            </p>
           </div>
 
           <div>
@@ -151,9 +164,12 @@ const ConfigManager = ({ adminToken }) => {
               type="text"
               value={formData.POLISH_BASE_URL}
               onChange={(e) => setFormData({...formData, POLISH_BASE_URL: e.target.value})}
-              placeholder="http://localhost:8317/v1"
+              placeholder="https://api.openai.com/v1"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
+            <p className="mt-1.5 text-xs text-gray-400">
+              API 服务地址，必须以 /v1 结尾。Gemini: https://generativelanguage.googleapis.com/v1beta/openai
+            </p>
           </div>
         </div>
       </div>
@@ -164,7 +180,10 @@ const ConfigManager = ({ adminToken }) => {
           <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center">
             <Cpu className="w-5 h-5 text-cyan-600" />
           </div>
-          <h3 className="text-lg font-bold text-gray-900">论文增强模型配置</h3>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">论文增强模型配置</h3>
+            <p className="text-xs text-gray-400">用于第二阶段：原创性增强</p>
+          </div>
         </div>
 
         <div className="space-y-5">
@@ -179,19 +198,25 @@ const ConfigManager = ({ adminToken }) => {
               placeholder="gemini-2.5-pro"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
+            <p className="mt-1.5 text-xs text-gray-400">
+              推荐与润色模型使用相同配置
+            </p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-500 mb-2">
-              API Key (可选)
+              API Key
             </label>
             <input
-              type="text"
+              type="password"
               value={formData.ENHANCE_API_KEY}
               onChange={(e) => setFormData({...formData, ENHANCE_API_KEY: e.target.value})}
-              placeholder="留空使用默认 OpenAI Key"
+              placeholder="sk-... 或 AIzaSy..."
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-mono"
             />
+            <p className="mt-1.5 text-xs text-gray-400">
+              可与润色模型使用相同的 Key
+            </p>
           </div>
 
           <div>
@@ -202,9 +227,12 @@ const ConfigManager = ({ adminToken }) => {
               type="text"
               value={formData.ENHANCE_BASE_URL}
               onChange={(e) => setFormData({...formData, ENHANCE_BASE_URL: e.target.value})}
-              placeholder="http://localhost:8317/v1"
+              placeholder="https://api.openai.com/v1"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
+            <p className="mt-1.5 text-xs text-gray-400">
+              可与润色模型使用相同的地址
+            </p>
           </div>
         </div>
       </div>
@@ -215,7 +243,10 @@ const ConfigManager = ({ adminToken }) => {
           <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center">
             <Cpu className="w-5 h-5 text-rose-600" />
           </div>
-          <h3 className="text-lg font-bold text-gray-900">感情文章润色模型配置</h3>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">感情文章润色模型配置</h3>
+            <p className="text-xs text-gray-400">用于感情类文章的风格化润色</p>
+          </div>
         </div>
 
         <div className="space-y-5">
@@ -230,17 +261,20 @@ const ConfigManager = ({ adminToken }) => {
               placeholder="gemini-2.5-pro"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
+            <p className="mt-1.5 text-xs text-gray-400">
+              可与其他模型使用相同配置
+            </p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-500 mb-2">
-              API Key (可选)
+              API Key
             </label>
             <input
-              type="text"
+              type="password"
               value={formData.EMOTION_API_KEY}
               onChange={(e) => setFormData({...formData, EMOTION_API_KEY: e.target.value})}
-              placeholder="留空使用默认 OpenAI Key"
+              placeholder="sk-... 或 AIzaSy..."
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-mono"
             />
           </div>
@@ -253,7 +287,7 @@ const ConfigManager = ({ adminToken }) => {
               type="text"
               value={formData.EMOTION_BASE_URL}
               onChange={(e) => setFormData({...formData, EMOTION_BASE_URL: e.target.value})}
-              placeholder="http://localhost:8317/v1"
+              placeholder="https://api.openai.com/v1"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
           </div>
@@ -330,7 +364,10 @@ const ConfigManager = ({ adminToken }) => {
           <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
             <Settings className="w-5 h-5 text-orange-600" />
           </div>
-          <h3 className="text-lg font-bold text-gray-900">系统配置</h3>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">系统配置</h3>
+            <p className="text-xs text-gray-400">压缩模型与运行参数设置</p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -345,6 +382,7 @@ const ConfigManager = ({ adminToken }) => {
               placeholder="5"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
+            <p className="mt-1.5 text-xs text-gray-400">同时处理任务的最大数量</p>
           </div>
 
           <div>
@@ -358,6 +396,7 @@ const ConfigManager = ({ adminToken }) => {
               placeholder="5000"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
+            <p className="mt-1.5 text-xs text-gray-400">超过此字数时自动压缩历史记录</p>
           </div>
 
           <div>
@@ -371,19 +410,21 @@ const ConfigManager = ({ adminToken }) => {
               placeholder="gemini-2.5-pro"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
+            <p className="mt-1.5 text-xs text-gray-400">用于压缩历史记录的模型</p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-500 mb-2">
-              压缩 API Key (可选)
+              压缩 API Key
             </label>
             <input
-              type="text"
+              type="password"
               value={formData.COMPRESSION_API_KEY}
               onChange={(e) => setFormData({...formData, COMPRESSION_API_KEY: e.target.value})}
-              placeholder="留空使用默认 OpenAI Key"
+              placeholder="sk-... 或 AIzaSy..."
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-mono"
             />
+            <p className="mt-1.5 text-xs text-gray-400">可与其他模型使用相同的 Key</p>
           </div>
 
           <div className="md:col-span-2">
@@ -394,9 +435,10 @@ const ConfigManager = ({ adminToken }) => {
               type="text"
               value={formData.COMPRESSION_BASE_URL}
               onChange={(e) => setFormData({...formData, COMPRESSION_BASE_URL: e.target.value})}
-              placeholder="http://localhost:8317/v1"
+              placeholder="https://api.openai.com/v1"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
+            <p className="mt-1.5 text-xs text-gray-400">可与其他模型使用相同的地址</p>
           </div>
 
           <div>
@@ -410,7 +452,7 @@ const ConfigManager = ({ adminToken }) => {
               placeholder="1"
               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
             />
-            <p className="mt-1.5 text-xs text-gray-400">新用户的默认使用次数限制</p>
+            <p className="mt-1.5 text-xs text-gray-400">新用户的默认使用次数限制，0 表示无限制</p>
           </div>
 
           <div>
