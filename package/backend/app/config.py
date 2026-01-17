@@ -31,11 +31,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str = get_default_database_url()
     
     # Redis 配置
-    REDIS_URL: str = "redis://IP:6379/0"
-    
-    # OpenAI API 配置
-    OPENAI_API_KEY: str = "pwd"
-    OPENAI_BASE_URL: str = "http://IP:PORT/v1"
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # OpenAI API 配置（必须通过环境变量设置）
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     
     # 第一阶段模型配置 (论文润色)
     POLISH_MODEL: str = "gpt-5"
